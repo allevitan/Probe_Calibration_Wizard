@@ -1,25 +1,73 @@
 import sys
 import os
+from copy import copy
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-import qdarkstyle
+#import qdarkstyle
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.figure import Figure
 
 import numpy as np
+import torch as t
 from scipy.io import loadmat, savemat
+
+from cdtools.tools import propagators
 
 from probe_calibration_wizard_ui import Ui_MainWindow
 
-class MplCanvas(FigureCanvasQTAgg):
+"""
+This section deals with unit conversions
+"""
 
-    def __init__(self, parent=None, width=5, height=4):
-        fig = Figure(figsize=(width, height))
-        self.axes = fig.add_subplot(111)
-        super(MplCanvas, self).__init__(fig)
+SI_CONVERSIONS = {'A': 1e-10,
+                  'nm': 1e-9,
+                  'um': 1e-6,
+                  'mm': 1e-3,
+                  'cm': 1e-2,
+                  'm': 1,
+                  'km': 1e3,
+                  'ueV': 1.602177e-25,
+                  'meV': 1.602177e-22,
+                  'eV': 1.602177e-19,
+                  'keV': 1.602177e-16,
+                  'MeV': 1.602177e-13} 
+
+def convert_to_SI(value, unit):
+    return value * SI_CONVERSIONS[unit.strip()]
+
+def convert_from_SI(SI_value, unit):
+    return SI_value / SI_CONVERSIONS[unit.strip()]
+
+def convert_to_best_unit(SI_value, unit_options, target=500):
+    converted = [convert_from_SI(SI_value, unit) for unit in unit_options]
+    logs = np.log10(np.array(converted))
+    target_log = np.log10(target)
+
+    best = np.argmin(np.abs(logs-target_log))
+    return converted[best], unit_options[best], best
+
+def autoset_from_SI(SI_value, textbox, combobox, format_string='%0.2f'):
+    units = [combobox.itemText(idx) for idx in range(combobox.count())]
+    converted, best_unit, idx = convert_to_best_unit(SI_value, units)
+    
+    textbox.setText(format_string % converted)
+    combobox.setCurrentIndex(idx)
+    return converted
+
+def get_SI_from_lineEdit(textbox, combobox):
+    value = float(textbox.text())
+    unit = combobox.currentText()
+    return convert_to_SI(value, unit)
+
+    
+"""
+Below we define the functionality of the main window
+"""
 
 class Window(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
@@ -41,12 +89,10 @@ class Window(QMainWindow, Ui_MainWindow):
                               self.lineEdit_eMax,
                               self.comboBox_eUnits,
                               self.pushButton_eReset)
+
+        self.setupProbeViewer()
         self.setupFileManagement()
         self.setupCalibrationHints()
-
-        plot = MplCanvas(self, width=5, height=4)
-        plot.axes.plot([0,1,2,3,4],[10,1,20,3,40])
-        self.graphicsView.addWidget(plot)
         
         self.disableControls()
 
@@ -76,7 +122,8 @@ class Window(QMainWindow, Ui_MainWindow):
             val = spinbox.value()
             slider.setValue(val)
             label.setText('/%d' % val)
-
+            currentMode.setMaximum(val)
+            
             if currentMode.value() > val:
                 currentMode.setValue(val)
             
@@ -127,12 +174,35 @@ class Window(QMainWindow, Ui_MainWindow):
         minbox.editingFinished.connect(update_slider_range)
         maxbox.editingFinished.connect(update_slider_range)
 
+        reset.resetTo = '0'
         def reset_slider():
-            textbox.setText('0')
+            textbox.setText(reset.resetTo)
             textbox_finished_callback()
             
         reset.clicked.connect(reset_slider)
 
+        textbox.editingFinished.connect(self.fullRefresh)
+        slider.sliderMoved.connect(self.fullRefresh)
+        reset.clicked.connect(self.fullRefresh)
+
+
+    def setupProbeViewer(self):
+        # Making the figsize large just makes it so that the figure expands
+        # when you increase the window size, instead of the other UI elements
+        self.fig = Figure(figsize=(10,10))
+        self.fig.set_facecolor((1.0,1.0,1.0,0.0)) # Transparent
+                
+        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas.setStyleSheet("background-color:transparent;") 
+        self.toolbar = NavigationToolbar2QT(self.canvas, self)
+
+        self.groupBox_probeViewer.layout().insertWidget(0,self.canvas)
+        self.groupBox_probeViewer.layout().insertWidget(0,self.toolbar)
+        self.groupBox_probeViewer.layout().removeWidget(self.graphicsView)
+        self.graphicsView.deleteLater()
+        self.graphicsView = None
+
+        
     def setupFileManagement(self):
 
         def getSaveLocation():
@@ -187,7 +257,7 @@ class Window(QMainWindow, Ui_MainWindow):
         
         # This always unravels all the modes so the probe is n_modesxNxM
         if len(loaded_data['probe'].shape) == 2:
-            loaded_data['probe'] = loaded_data['probe'].unsqueeze(0)
+            loaded_data['probe'] = np.expand_dims(loaded_data['probe'], 0)
         n_modes = np.prod(loaded_data['probe'].shape[:-2])
         loaded_data['probe'] = loaded_data['probe'].reshape(
             (n_modes,) + loaded_data['probe'].shape[-2:])
@@ -200,15 +270,18 @@ class Window(QMainWindow, Ui_MainWindow):
             return
         
         self.base_data = loaded_data
+        self.probe = loaded_data['probe']
         
         # Now we update the controls to be initialized with resonable values
         self.horizontalSlider_nmodes.setRange(1, n_modes)
         self.spinBox_nmodes.setRange(1, n_modes)
         self.spinBox_nmodes.setValue(n_modes)
 
-        hc = 1.239842e-6
+        # The energy slider
+        hc = 1.986446e-25 # hc in Joule-meters
         energy = hc / loaded_data['wavelength']
-        self.lineEdit_e.setText('%0.4f' % energy)
+        energy = autoset_from_SI(energy, self.lineEdit_e, self.comboBox_eUnits,
+                                 format_string='%0.2f')
         minval = int(np.floor(energy*0.9))
         maxval = int(np.ceil(energy*1.1))
         self.lineEdit_eMin.setText(str(minval))
@@ -216,12 +289,76 @@ class Window(QMainWindow, Ui_MainWindow):
         self.horizontalSlider_e.setRange(minval, maxval)
         self.horizontalSlider_e.setValue(int(np.round(energy)))
 
+        # TODO: This will fail if the units box is changed
+        self.pushButton_eReset.resetTo = self.lineEdit_e.text()
+        
+        # And the Propagation Slider
+        pitches = np.linalg.norm(loaded_data['basis'],axis=0)
+        min_pitch = np.min(pitches)
+        DOF = 2 * min_pitch**2 / loaded_data['wavelength']
+        units = [self.comboBox_dzUnits.itemText(idx) for idx in
+                 range(self.comboBox_dzUnits.count())]
+        
+        DOF, unit, idx = convert_to_best_unit(DOF, units)
+        prop_limit = int(np.ceil(200 * DOF))
+
+        self.lineEdit_dz.setText('0')
+        self.lineEdit_dzMin.setText(str(-prop_limit))
+        self.lineEdit_dzMax.setText(str(prop_limit))
+        self.horizontalSlider_dz.setRange(-prop_limit, prop_limit)
+        self.horizontalSlider_dz.setValue(0)
+        self.comboBox_dzUnits.setCurrentIndex(idx)
+        
         if 'A0' in loaded_data:
             self.lineEdit_a0.setText(str(A0))
+
+        self.fig.clear()
+        self.axes = self.fig.add_subplot(111)
+        self.axes.set_title('Amplitude of Mode 1 in Real Space')
+        self.axes.set_xlabel('x (um)')
+        self.axes.set_ylabel('y (um)')
+
+        self.im = self.axes.imshow(np.abs(self.base_data['probe'][0]))
+        divider = make_axes_locatable(self.axes)
         
-        
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+
+        self.fig.colorbar(self.im, cax=cax)
+
+        self.updateFigure()
         self.enableControls()
 
+    def fullRefresh(self):
+        self.recalculate()
+        self.updateFigure()
+        if self.checkBox_autosave.checkState():
+            self.saveFile()
+        
+    def recalculate(self):
+        # TODO: Actually do these calculations.
+        # 1: Orthogonalize and clip probes
+        # 2: Update the probe energy
+        # 3: Propagate correct distance
+
+        clipped_probes = t.as_tensor(self.base_data['probe'])
+
+        # Energy stuff
+        
+        shape = clipped_probes.shape[-2:]
+        spacing = t.as_tensor(np.linalg.norm(self.base_data['basis'], axis=0))
+        wavelength = self.base_data['wavelength'].ravel()[0]
+        z = get_SI_from_lineEdit(self.lineEdit_dz, self.comboBox_dzUnits)
+
+        if z != 0:
+            prop = propagators.generate_angular_spectrum_propagator(shape, spacing, wavelength, z, remove_z_phase=True)
+            self.probe = propagators.near_field(clipped_probes, prop).numpy()
+        else:
+            self.probe = clipped_probes
+            
+    def updateFigure(self):
+        self.im.set_data(np.abs(self.probe[0]))
+        self.canvas.draw_idle()
+        
     def saveFile(self, filename=None):
         if filename is None:
             filename = self.lineEdit_saveLocation.text()
@@ -230,14 +367,16 @@ class Window(QMainWindow, Ui_MainWindow):
         if filename[-4:].lower() != '.mat':
             filename += '.mat'
 
-        # TODO
-        print('Saving files is not yet implemented')
+        # TODO : actually update the energy here
+        save_data = copy(self.base_data)
+        save_data['probe'] = self.probe
+        savemat(filename, save_data)
 
         
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setApplicationName('PCW7012')
-    app.setStyleSheet(qdarkstyle.load_stylesheet())
+    #app.setStyleSheet(qdarkstyle.load_stylesheet())
         
     win = Window()
     win.show()

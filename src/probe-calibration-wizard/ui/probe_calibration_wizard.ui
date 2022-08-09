@@ -344,12 +344,31 @@
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
+           <property name="minimumSize">
+            <size>
+             <width>55</width>
+             <height>0</height>
+            </size>
+           </property>
            <property name="maximumSize">
             <size>
-             <width>50</width>
+             <width>55</width>
              <height>16777215</height>
             </size>
            </property>
+           <property name="currentText">
+            <string>meV</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>ueV</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>meV</string>
+            </property>
+           </item>
            <item>
             <property name="text">
              <string>eV</string>
@@ -358,6 +377,11 @@
            <item>
             <property name="text">
              <string>keV</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>MeV</string>
             </property>
            </item>
           </widget>
@@ -396,17 +420,18 @@
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
+           <property name="minimumSize">
+            <size>
+             <width>55</width>
+             <height>0</height>
+            </size>
+           </property>
            <property name="maximumSize">
             <size>
-             <width>50</width>
+             <width>55</width>
              <height>16777215</height>
             </size>
            </property>
-           <item>
-            <property name="text">
-             <string>um</string>
-            </property>
-           </item>
            <item>
             <property name="text">
              <string>nm</string>
@@ -613,13 +638,8 @@
           </size>
          </property>
          <property name="currentText">
-          <string>um</string>
+          <string>nm</string>
          </property>
-         <item>
-          <property name="text">
-           <string>um</string>
-          </property>
-         </item>
          <item>
           <property name="text">
            <string>nm</string>
