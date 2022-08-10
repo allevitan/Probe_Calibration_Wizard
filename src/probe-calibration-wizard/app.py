@@ -16,7 +16,7 @@ import numpy as np
 import torch as t
 from scipy.io import loadmat, savemat
 
-from cdtools.tools import propagators
+from cdtools.tools import propagators, analysis
 
 from probe_calibration_wizard_ui import Ui_MainWindow
 
@@ -77,19 +77,7 @@ class Window(QMainWindow, Ui_MainWindow):
 
     def connectSignalsSlots(self):
         self.setupModeControl()
-        self.setupSliderGroup(self.lineEdit_dz,
-                              self.lineEdit_dzMin,
-                              self.horizontalSlider_dz,
-                              self.lineEdit_dzMax,
-                              self.comboBox_dzUnits,
-                              self.pushButton_dzReset)
-        self.setupSliderGroup(self.lineEdit_e,
-                              self.lineEdit_eMin,
-                              self.horizontalSlider_e,
-                              self.lineEdit_eMax,
-                              self.comboBox_eUnits,
-                              self.pushButton_eReset)
-
+        self.setupProbeAdjustment()
         self.setupProbeViewer()
         self.setupFileManagement()
         self.setupCalibrationHints()
@@ -129,7 +117,28 @@ class Window(QMainWindow, Ui_MainWindow):
             
         spinbox.valueChanged.connect(nmodes_spinbox_finished_callback)
 
-        
+    def setupProbeAdjustment(self):
+        self.setupSliderGroup(self.lineEdit_dz,
+                              self.lineEdit_dzMin,
+                              self.horizontalSlider_dz,
+                              self.lineEdit_dzMax,
+                              self.comboBox_dzUnits,
+                              self.pushButton_dzReset)
+        self.setupSliderGroup(self.lineEdit_e,
+                              self.lineEdit_eMin,
+                              self.horizontalSlider_e,
+                              self.lineEdit_eMax,
+                              self.comboBox_eUnits,
+                              self.pushButton_eReset)
+
+        def updateOrtho():
+            if hasattr(self, 'orthogonalized_probes'):
+                delattr(self, 'orthogonalized_probes')
+            self.fullRefresh()
+                
+        self.checkBox_ortho.stateChanged.connect(updateOrtho)
+
+
     def setupSliderGroup(self, textbox, minbox, slider, maxbox, unit, reset):
         textbox.setValidator(QDoubleValidator())
         minbox.setValidator(QIntValidator())
@@ -201,6 +210,12 @@ class Window(QMainWindow, Ui_MainWindow):
         self.groupBox_probeViewer.layout().removeWidget(self.graphicsView)
         self.graphicsView.deleteLater()
         self.graphicsView = None
+
+        self.radioButton_real.clicked.connect(self.updateFigure)
+        self.radioButton_fourier.clicked.connect(self.updateFigure)
+        self.radioButton_amplitude.clicked.connect(self.updateFigure)
+        self.radioButton_phase.clicked.connect(self.updateFigure)
+        self.spinBox_viewMode.valueChanged.connect(self.updateFigure)
 
         
     def setupFileManagement(self):
@@ -277,6 +292,10 @@ class Window(QMainWindow, Ui_MainWindow):
         self.spinBox_nmodes.setRange(1, n_modes)
         self.spinBox_nmodes.setValue(n_modes)
 
+        if hasattr(self, 'orthogonalized_probes'):
+            delattr(self, 'orthogonalized_probes')
+        self.checkBox_ortho.setCheckState(False)
+        
         # The energy slider
         hc = 1.986446e-25 # hc in Joule-meters
         energy = hc / loaded_data['wavelength']
@@ -318,7 +337,12 @@ class Window(QMainWindow, Ui_MainWindow):
         self.axes.set_xlabel('x (um)')
         self.axes.set_ylabel('y (um)')
 
-        self.im = self.axes.imshow(np.abs(self.base_data['probe'][0]))
+        basis_norm = np.linalg.norm(self.base_data['basis'], axis=0)
+        basis_norm /= 1e-6 # Hard-coded um for now
+        extent = [0, self.base_data['probe'].shape[-1]*basis_norm[1], 0,
+                  self.base_data['probe'].shape[-2]*basis_norm[0]]
+        self.im = self.axes.imshow(np.abs(self.base_data['probe'][0]),
+                                   extent=extent)
         divider = make_axes_locatable(self.axes)
         
         cax = divider.append_axes('right', size='5%', pad=0.05)
@@ -335,14 +359,27 @@ class Window(QMainWindow, Ui_MainWindow):
             self.saveFile()
         
     def recalculate(self):
-        # TODO: Actually do these calculations.
+        # Order of operations
         # 1: Orthogonalize and clip probes
         # 2: Update the probe energy
         # 3: Propagate correct distance
 
-        clipped_probes = t.as_tensor(self.base_data['probe'])
+        # This is a pretty expensive operation, and it will rarely change,
+        # so I think it's worth it to avoid recalculating it each time.
+        # Whenever anything happens that needs to recalculate this, the
+        # pattern is to just delete it and it will be recalculated when needed
+        if not hasattr(self, 'orthogonalized_probes'):
+            if self.checkBox_ortho.checkState():
+                self.orthogonalized_probes = \
+                    analysis.orthogonalize_probes(
+                        t.as_tensor(self.base_data['probe']))
+            else:
+                self.orthogonalized_probes = t.as_tensor(self.base_data['probe'])
 
-        # Energy stuff
+        nmodes = self.spinBox_nmodes.value()
+        clipped_probes = self.orthogonalized_probes[:nmodes]
+
+        # TODO: Actually implement the energy update
         
         shape = clipped_probes.shape[-2:]
         spacing = t.as_tensor(np.linalg.norm(self.base_data['basis'], axis=0))
@@ -356,7 +393,24 @@ class Window(QMainWindow, Ui_MainWindow):
             self.probe = clipped_probes
             
     def updateFigure(self):
-        self.im.set_data(np.abs(self.probe[0]))
+        # TODO: Make it rescale the colorbar on update
+        # TODO: Make the axes change to frequency for Fourier space
+        # TODO: Make the colormap change between real and Fourier space
+        # TODO: Make the units of the axes something sensible depending on
+        # the extent
+        
+        probe_mode = self.spinBox_viewMode.value()
+        to_show = self.probe[probe_mode-1]
+
+        if self.radioButton_fourier.isChecked():
+            to_show = np.fft.fftshift(np.fft.fft2(to_show, norm='ortho'))
+
+        if self.radioButton_amplitude.isChecked():
+            to_show = np.abs(to_show)
+        else:
+            to_show = np.angle(to_show)
+        
+        self.im.set_data(to_show)
         self.canvas.draw_idle()
         
     def saveFile(self, filename=None):
