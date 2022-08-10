@@ -296,6 +296,10 @@ class Window(QMainWindow, Ui_MainWindow):
     def setupCalibrationHints(self):
         self.lineEdit_a0.setValidator(QDoubleValidator())
 
+        self.spinBox_iterations.valueChanged.connect(
+            self.emitCalibrationIfChecked)
+        self.spinBox_resolution.valueChanged.connect(
+            self.emitCalibrationIfChecked)
         # TODO: Make load and edit mask and background work
         
         
@@ -349,11 +353,6 @@ class Window(QMainWindow, Ui_MainWindow):
 
         self.base_data['basis'] = loaded_data['basis']
 
-        if 'A0' in loaded_data:
-            self.base_data['A0'] = loaded_data['A0']
-        elif 'a0' in loaded_data:
-            self.base_data['A0'] = loaded_data['a0']
-            
         if 'mask' in loaded_data:
             self.base_data['mask'] = loaded_data['mask']
 
@@ -388,9 +387,9 @@ class Window(QMainWindow, Ui_MainWindow):
         self.pushButton_eReset.resetTo = self.lineEdit_e.text()
         
         # And the Propagation Slider
-        pitches = np.linalg.norm(loaded_data['basis'],axis=0)
+        pitches = np.linalg.norm(self.base_data['basis'],axis=0)
         min_pitch = np.min(pitches)
-        DOF = 2 * min_pitch**2 / loaded_data['wavelength']
+        DOF = 2 * min_pitch**2 / self.base_data['wavelength']
         units = [self.comboBox_dzUnits.itemText(idx) for idx in
                  range(self.comboBox_dzUnits.count())]
         
@@ -403,10 +402,30 @@ class Window(QMainWindow, Ui_MainWindow):
         self.horizontalSlider_dz.setRange(-prop_limit, prop_limit)
         self.horizontalSlider_dz.setValue(0)
         self.comboBox_dzUnits.setCurrentIndex(idx)
-        
-        if 'A0' in loaded_data:
-            self.lineEdit_a0.setText(str(A0))
 
+        # TODO: this is wrong, it doesn't deal with units properly
+        if 'A0' in loaded_data:
+            A0_SI = loaded_data['A0'].ravel()[0]
+            autoset_from_SI(A0_SI, self.lineEdit_a0,
+                            self.comboBox_a0Units, format_string='%0.3f')
+        elif 'a0' in loaded_data:
+            A0_SI = loaded_data['a0'].ravel()[0]
+            autoset_from_SI(A0_SI, self.lineEdit_a0,
+                            self.comboBox_a0Units, format_string='%0.3f')
+
+        if 'iterations' in loaded_data:
+            iterations = loaded_data['iterations'].ravel()[0]
+            self.spinBox_iterations.setValue(iterations)
+
+        min_probe_size = np.min(self.probe.shape[-2:])
+        
+        self.spinBox_resolution.setRange(1, min_probe_size)
+        self.spinBox_resolution.setValue(min_probe_size//4)
+        if 'resolution' in loaded_data:
+            resolution = loaded_data['resolution'].ravel()[0]
+            self.spinBox_resolution.setValue(resolution)
+            
+        # Now we plot the loaded probe
         self.fig.clear()
         self.axes = self.fig.add_subplot(111)
         self.axes.set_title('Amplitude of Mode 1 in Real Space')
@@ -431,8 +450,7 @@ class Window(QMainWindow, Ui_MainWindow):
     def fullRefresh(self):
         self.recalculate()
         self.updateFigure()
-        if self.checkBox_zmq.checkState():
-            self.emitCalibration()
+        self.emitCalibrationIfChecked()
         
     def recalculate(self):
         # Order of operations
@@ -503,10 +521,33 @@ class Window(QMainWindow, Ui_MainWindow):
         self.im.set_data(to_show)
         self.canvas.draw_idle()
 
+
+    def collect_results(self):
+        results = copy(self.base_data)
+
+        #TODO: update the energy (and therefore also basis) here
+
+        results['probe'] = self.probe
+
+        results['iterations'] = self.spinBox_iterations.value()
+        results['resolution'] = self.spinBox_resolution.value()
+
+        if self.lineEdit_a0.text().strip() != '':
+            A0 = float(self.lineEdit_a0.text().strip())
+            A0_unit = self.comboBox_a0Units.currentText()
+            results['A0'] = convert_to_SI(A0, A0_unit)
+
+        # TODO: Save out the background and mask if desired
+        
+        return results
+
+    def emitCalibrationIfChecked(self):
+        if self.checkBox_zmq.checkState():
+            self.emitCalibration()
+        
     def emitCalibration(self):
-        #TODO: update the energy here
-        save_data = copy(self.base_data)
-        save_data['probe'] = self.probe
+        save_data = self.collect_results()
+        
         self.pub.send_pyobj(save_data)
         currentTime = datetime.datetime.now().strftime('%H:%M:%S')
         self.statusBar().showMessage('Published to ØMQ ('
@@ -514,7 +555,6 @@ class Window(QMainWindow, Ui_MainWindow):
                                      + ') at ' + currentTime)
         
     def saveFile(self, filename=None):
-        t0 = time()
         if filename is None:
             filename = self.lineEdit_saveLocation.text()
 
@@ -522,9 +562,7 @@ class Window(QMainWindow, Ui_MainWindow):
         if filename[-4:].lower() != '.mat':
             filename += '.mat'
 
-        # TODO : actually update the energy here
-        save_data = copy(self.base_data)
-        save_data['probe'] = self.probe
+        save_data = self.collect_results()
         savemat(filename, save_data)
         
 if __name__ == '__main__':
