@@ -22,10 +22,13 @@ from scipy.io import loadmat, savemat
 from cdtools.tools import propagators, analysis
 
 from probe_calibration_wizard_ui import Ui_MainWindow
+from update_probe_energy import change_energy
 
 """
 This section deals with unit conversions
 """
+
+hc = 1.986446e-25 # hc in Joule-meters
 
 SI_CONVERSIONS = {'A': 1e-10,
                   'nm': 1e-9,
@@ -38,7 +41,13 @@ SI_CONVERSIONS = {'A': 1e-10,
                   'meV': 1.602177e-22,
                   'eV': 1.602177e-19,
                   'keV': 1.602177e-16,
-                  'MeV': 1.602177e-13} 
+                  'MeV': 1.602177e-13,
+                  'nm/eV': 1e-9/1.602177e-19,
+                  'um/eV': 1e-6/1.602177e-19,
+                  'mm/eV': 1e-3/1.602177e-19,
+                  'cm/eV': 1e-2/1.602177e-19,
+                  'm/eV': 1/1.602177e-19,
+                  'km/eV': 1e3/1.602177e-19} 
 
 def convert_to_SI(value, unit):
     return value * SI_CONVERSIONS[unit.strip()]
@@ -54,9 +63,11 @@ def convert_to_best_unit(SI_value, unit_options, target=500):
     best = np.argmin(np.abs(logs-target_log))
     return converted[best], unit_options[best], best
 
-def autoset_from_SI(SI_value, textbox, combobox, format_string='%0.2f'):
+def autoset_from_SI(SI_value, textbox, combobox, format_string='%0.2f',
+                    target=500):
     units = [combobox.itemText(idx) for idx in range(combobox.count())]
-    converted, best_unit, idx = convert_to_best_unit(SI_value, units)
+    converted, best_unit, idx = convert_to_best_unit(SI_value, units,
+                                                     target=target)
     
     textbox.setText(format_string % converted)
     combobox.setCurrentIndex(idx)
@@ -166,7 +177,7 @@ class Window(QMainWindow, Ui_MainWindow):
             self.fullRefresh()
                 
         self.checkBox_ortho.stateChanged.connect(updateOrtho)
-
+        self.checkBox_updateDzWithE.stateChanged.connect(self.fullRefresh)
 
     def setupSliderGroup(self, textbox, minbox, slider, maxbox, unit, reset):
         textbox.setValidator(QDoubleValidator())
@@ -352,6 +363,7 @@ class Window(QMainWindow, Ui_MainWindow):
             return
 
         self.base_data['basis'] = loaded_data['basis']
+        self.basis = loaded_data['basis']
 
         if 'mask' in loaded_data:
             self.base_data['mask'] = loaded_data['mask']
@@ -372,7 +384,6 @@ class Window(QMainWindow, Ui_MainWindow):
         self.checkBox_ortho.setCheckState(False)
         
         # The energy slider
-        hc = 1.986446e-25 # hc in Joule-meters
         energy = hc / self.base_data['wavelength']
         energy = autoset_from_SI(energy, self.lineEdit_e, self.comboBox_eUnits,
                                  format_string='%0.2f')
@@ -407,11 +418,13 @@ class Window(QMainWindow, Ui_MainWindow):
         if 'A0' in loaded_data:
             A0_SI = loaded_data['A0'].ravel()[0]
             autoset_from_SI(A0_SI, self.lineEdit_a0,
-                            self.comboBox_a0Units, format_string='%0.3f')
+                            self.comboBox_a0Units, format_string='%0.3f',
+                            target=40)
         elif 'a0' in loaded_data:
             A0_SI = loaded_data['a0'].ravel()[0]
             autoset_from_SI(A0_SI, self.lineEdit_a0,
-                            self.comboBox_a0Units, format_string='%0.3f')
+                            self.comboBox_a0Units, format_string='%0.3f',
+                            target=40)
 
         if 'iterations' in loaded_data:
             iterations = loaded_data['iterations'].ravel()[0]
@@ -437,7 +450,7 @@ class Window(QMainWindow, Ui_MainWindow):
         extent = [0, self.base_data['probe'].shape[-1]*basis_norm[1], 0,
                   self.base_data['probe'].shape[-2]*basis_norm[0]]
         self.im = self.axes.imshow(np.abs(self.base_data['probe'][0]),
-                                   extent=extent)
+                                   extent=extent, interpolation='none')
         divider = make_axes_locatable(self.axes)
         
         cax = divider.append_axes('right', size='5%', pad=0.05)
@@ -480,7 +493,20 @@ class Window(QMainWindow, Ui_MainWindow):
         nmodes = self.spinBox_nmodes.value()
         clipped_probes = self.orthogonalized_probes[:nmodes]
 
-        # TODO: Actually implement the energy update
+        energy = get_SI_from_lineEdit(self.lineEdit_e, self.comboBox_eUnits)
+        base_energy = hc / self.base_data['wavelength']
+        if hasattr(self, 'last_base_energy'):
+            if last_base_energy != base_energy:
+                delattr(self, 'universal_prop')
+        last_base_energy = base_energy
+        
+        energy_ratio = energy / base_energy
+        energy_changed_probes = change_energy(clipped_probes, energy_ratio)
+        
+        A0 = get_SI_from_lineEdit(self.lineEdit_a0, self.comboBox_a0Units)
+        energy_propagation_correction = A0 * (base_energy - energy)
+
+        self.basis = self.base_data['basis'] / energy_ratio
         
         if not hasattr(self, 'universal_prop'):
             # Whenever something happens that has to change this, for example
@@ -488,17 +514,23 @@ class Window(QMainWindow, Ui_MainWindow):
             # universal propagator and it will be recalculated here.
             
             shape = clipped_probes.shape[-2:]
-            spacing = t.as_tensor(np.linalg.norm(self.base_data['basis'], axis=0))
-            wavelength = self.base_data['wavelength'].ravel()[0]
-            self.universal_prop = make_universal_propagator(shape, spacing, wavelength)
-            self.universal_prop = (1j * self.universal_prop)#.to(device='cuda:0')
+            spacing = t.as_tensor(np.linalg.norm(
+                self.basis, axis=0))
+            wavelength = hc / energy
+            self.universal_prop = make_universal_propagator(
+                shape, spacing, wavelength)
+            self.universal_prop = (1j * self.universal_prop)
         z = get_SI_from_lineEdit(self.lineEdit_dz, self.comboBox_dzUnits)
 
+        if self.checkBox_updateDzWithE.checkState():
+            z += energy_propagation_correction
+        
         if z != 0:
             prop = t.exp(z * self.universal_prop)
-            self.probe = propagators.near_field(clipped_probes, prop).numpy()
+            self.probe = propagators.near_field(
+                energy_changed_probes, prop).numpy()
         else:
-            self.probe = clipped_probes
+            self.probe = energy_changed_probes.numpy()
             
     def updateFigure(self):
         # TODO: Make it rescale the colorbar on update
@@ -506,19 +538,65 @@ class Window(QMainWindow, Ui_MainWindow):
         # TODO: Make the colormap change between real and Fourier space
         # TODO: Make the units of the axes something sensible depending on
         # the extent
-        
         probe_mode = self.spinBox_viewMode.value()
         to_show = self.probe[probe_mode-1]
-
+        
+        # TODO: This doesn't properly update with energy
+        basis_norm = np.linalg.norm(self.basis, axis=0)
+        
         if self.radioButton_fourier.isChecked():
+            title = ' in Fourier Space'
             to_show = np.fft.fftshift(np.fft.fft2(to_show, norm='ortho'))
 
+            extent = [-1/(2*basis_norm[0]),1/(2*basis_norm[0]),
+                      -1/(2*basis_norm[1]),1/(2*basis_norm[1])]
+            _,unit,_ = convert_to_best_unit(1/extent[1],
+                                            ['A','nm','um','mm','m','km'],
+                                            target=1/100)
+            extent = [1/convert_from_SI(1/e, unit) for e in extent]
+            #convert_to_best_unit(value, unit_options, target=500):
+            self.axes.set_xlabel('kx (cycles/' + unit + ')')
+            self.axes.set_ylabel('ky (cycles/' + unit + ')')
+
+        else:
+            title = ' in Real Space'
+            extent = [0, self.base_data['probe'].shape[-1]*basis_norm[1], 0,
+                      self.base_data['probe'].shape[-2]*basis_norm[0]]
+            _, unit, _ = convert_to_best_unit(extent[1],
+                                              ['A','nm','um','mm','m','km'],
+                                              target=100)
+            extent = [convert_from_SI(e, unit) for e in extent]
+            
+            
+            self.axes.set_xlabel('x (' + unit + ')')
+            self.axes.set_ylabel('y (' + unit + ')')
+            
+        title = ' of Mode ' + str(probe_mode) + title
+        
         if self.radioButton_amplitude.isChecked():
+            title = 'Amplitude' + title
             to_show = np.abs(to_show)
         else:
+            title = 'Phase' + title
             to_show = np.angle(to_show)
-        
+            
         self.im.set_data(to_show)
+
+        if self.radioButton_amplitude.isChecked():
+            # This cmap sets the scale so that one pixel in every row is
+            # saturated on average. It's a good compromise between not updating
+            #the colormap and having it flicker like crazy due to outliers
+            self.im.set(cmap='viridis',
+                        clim=[0, np.quantile(to_show,1-1/self.probe.shape[-1])],
+                        extent=extent)
+            
+        else:
+            self.im.set(cmap='twilight',
+                        clim=[-np.pi,np.pi],
+                        extent=extent)
+
+        self.axes.set_title(title)
+        
         self.canvas.draw_idle()
 
 
@@ -528,6 +606,7 @@ class Window(QMainWindow, Ui_MainWindow):
         #TODO: update the energy (and therefore also basis) here
 
         results['probe'] = self.probe
+        results['basis'] = self.basis
 
         results['iterations'] = self.spinBox_iterations.value()
         results['resolution'] = self.spinBox_resolution.value()

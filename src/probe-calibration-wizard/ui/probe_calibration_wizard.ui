@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>500</width>
-    <height>955</height>
+    <height>980</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -643,6 +643,12 @@
          </item>
          <item>
           <widget class="QLineEdit" name="lineEdit_a0">
+           <property name="minimumSize">
+            <size>
+             <width>60</width>
+             <height>0</height>
+            </size>
+           </property>
            <property name="maximumSize">
             <size>
              <width>80</width>
@@ -659,38 +665,49 @@
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
+           <property name="minimumSize">
+            <size>
+             <width>70</width>
+             <height>0</height>
+            </size>
+           </property>
            <property name="maximumSize">
             <size>
-             <width>50</width>
+             <width>70</width>
              <height>16777215</height>
             </size>
            </property>
            <property name="currentText">
-            <string>nm</string>
+            <string>nm/eV</string>
            </property>
            <item>
             <property name="text">
-             <string>nm</string>
+             <string>nm/eV</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>um</string>
+             <string>um/eV</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>mm</string>
+             <string>mm/eV</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>cm</string>
+             <string>cm/eV</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>m</string>
+             <string>m/eV</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>km/eV</string>
             </property>
            </item>
           </widget>
