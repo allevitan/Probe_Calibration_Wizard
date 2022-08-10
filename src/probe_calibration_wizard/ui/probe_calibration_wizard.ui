@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>500</width>
-    <height>980</height>
+    <height>1067</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -349,7 +349,7 @@
            </property>
            <property name="minimumSize">
             <size>
-             <width>55</width>
+             <width>60</width>
              <height>0</height>
             </size>
            </property>
@@ -425,7 +425,7 @@
            </property>
            <property name="minimumSize">
             <size>
-             <width>55</width>
+             <width>60</width>
              <height>0</height>
             </size>
            </property>
@@ -597,13 +597,13 @@
           <widget class="QComboBox" name="comboBox_energyCorrectionPlan">
            <property name="minimumSize">
             <size>
-             <width>130</width>
+             <width>120</width>
              <height>0</height>
             </size>
            </property>
            <item>
             <property name="text">
-             <string>Assume Fixed ZP</string>
+             <string>Fixed ZP</string>
             </property>
            </item>
            <item>
@@ -667,7 +667,7 @@
            </property>
            <property name="minimumSize">
             <size>
-             <width>70</width>
+             <width>80</width>
              <height>0</height>
             </size>
            </property>
@@ -800,7 +800,7 @@
           <widget class="QPushButton" name="pushButton_viewBackground">
            <property name="minimumSize">
             <size>
-             <width>130</width>
+             <width>140</width>
              <height>0</height>
             </size>
            </property>
@@ -813,7 +813,7 @@
           <widget class="QPushButton" name="pushButton_loadBackground">
            <property name="minimumSize">
             <size>
-             <width>130</width>
+             <width>140</width>
              <height>0</height>
             </size>
            </property>
@@ -853,7 +853,7 @@
           <widget class="QPushButton" name="pushButton_viewMask">
            <property name="minimumSize">
             <size>
-             <width>130</width>
+             <width>140</width>
              <height>0</height>
             </size>
            </property>
@@ -866,7 +866,7 @@
           <widget class="QPushButton" name="pushButton_loadMask">
            <property name="minimumSize">
             <size>
-             <width>130</width>
+             <width>140</width>
              <height>0</height>
             </size>
            </property>

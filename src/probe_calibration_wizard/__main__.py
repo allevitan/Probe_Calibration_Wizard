@@ -1,4 +1,5 @@
 import sys
+import argparse
 import os
 from copy import copy
 
@@ -21,8 +22,8 @@ from scipy.io import loadmat, savemat
 
 from cdtools.tools import propagators, analysis
 
-from probe_calibration_wizard_ui import Ui_MainWindow
-from update_probe_energy import change_energy
+from probe_calibration_wizard.probe_calibration_wizard_ui import Ui_MainWindow
+from probe_calibration_wizard.update_probe_energy import change_energy
 
 """
 This section deals with unit conversions
@@ -106,10 +107,12 @@ Below we define the functionality of the main window
 """
 
 class Window(QMainWindow, Ui_MainWindow):
-    def __init__(self, parent=None):
+    def __init__(self, port, parent=None):
         super().__init__(parent)
         self.setupUi(self)
         self.connectSignalsSlots()
+        self.setupZMQ(port)
+        self.disableControls()
 
     def connectSignalsSlots(self):
         self.setupModeControl()
@@ -117,10 +120,6 @@ class Window(QMainWindow, Ui_MainWindow):
         self.setupProbeViewer()
         self.setupFileManagement()
         self.setupCalibrationHints()
-
-        self.setupZMQ()
-        
-        self.disableControls()
 
     def disableControls(self):
         self.groupBox_probeAdjustment.setDisabled(True)
@@ -258,7 +257,7 @@ class Window(QMainWindow, Ui_MainWindow):
         self.spinBox_viewMode.valueChanged.connect(self.updateFigure)
 
 
-    def setupZMQ(self):
+    def setupZMQ(self, port):
         def whenChecked(state):
             if state:
                 if not hasattr(self, 'context'):
@@ -266,7 +265,7 @@ class Window(QMainWindow, Ui_MainWindow):
                     # first time
                     self.context = zmq.Context()
                     
-                    self.port = "tcp://*:5557"
+                    self.port = port
                     # Define the socket to publish the probe calibration on
                     self.pub = self.context.socket(zmq.PUB)
                     self.pub.bind(self.port)
@@ -643,12 +642,21 @@ class Window(QMainWindow, Ui_MainWindow):
 
         save_data = self.collect_results()
         savemat(filename, save_data)
-        
-if __name__ == '__main__':
+
+
+def main(argv=sys.argv):
+
+    parser = argparse.ArgumentParser(description='Probe Calibration Wizard Seven Thousand Twelve')
+    parser.add_argument('port', nargs='?', type=str, help='ZeroMQ port to broadcast on', default='tcp://*:5557')
+    args = parser.parse_args()
+    
     app = QApplication(sys.argv)
     app.setApplicationName('PCW7012')
     #app.setStyleSheet(qdarkstyle.load_stylesheet())
 
-    win = Window()
+    win = Window(args.port)
     win.show()
-    sys.exit(app.exec())
+    return app.exec()
+
+if __name__ == '__main__':
+    sys.exit(main())

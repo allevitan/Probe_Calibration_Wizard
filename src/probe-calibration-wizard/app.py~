@@ -1,3 +1,0 @@
-import sys
-
-from probe_calibration_wizard_ui import Ui_MainWindow
