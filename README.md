@@ -1,4 +1,4 @@
-# Probe_Calibration_Wizard
+# Probe Calibration Wizard
 
 This is a simple GUI tool to manipulate probe calibrations for RPI and Ptychography. It allows for the manipulation of the number of probe modes, the probe propagation state, and corrections for energy changes under fixed detector positions.
 
