@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>500</width>
-    <height>881</height>
+    <height>963</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -78,15 +78,18 @@
           </widget>
          </item>
          <item>
-          <widget class="QCheckBox" name="checkBox_autosave">
+          <widget class="QCheckBox" name="checkBox_zmq">
            <property name="maximumSize">
             <size>
-             <width>100</width>
+             <width>150</width>
              <height>16777215</height>
             </size>
            </property>
            <property name="text">
-            <string>Autosave</string>
+            <string>Broadcast over ØMQ</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
            </property>
           </widget>
          </item>
@@ -578,94 +581,227 @@
     <item>
      <widget class="QGroupBox" name="groupBox_calibrationHints">
       <property name="title">
-       <string>Calibration Hints</string>
+       <string>Calibration Hints &amp;&amp; Additional Information</string>
       </property>
-      <layout class="QHBoxLayout" name="horizontalLayout_3">
+      <layout class="QVBoxLayout" name="verticalLayout_5">
        <item>
-        <widget class="QLabel" name="label_3">
-         <property name="text">
-          <string>Energy Correction Plan:</string>
-         </property>
-        </widget>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <widget class="QLabel" name="label_3">
+           <property name="text">
+            <string>Energy Correction Plan:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBox_energyCorrectionPlan">
+           <property name="minimumSize">
+            <size>
+             <width>130</width>
+             <height>0</height>
+            </size>
+           </property>
+           <item>
+            <property name="text">
+             <string>Assume Fixed ZP</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Stay In Focus</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_4">
+           <property name="text">
+            <string>&amp;A0:</string>
+           </property>
+           <property name="buddy">
+            <cstring>lineEdit_a0</cstring>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="lineEdit_a0">
+           <property name="maximumSize">
+            <size>
+             <width>80</width>
+             <height>16777215</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBox_a0Units">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>50</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="currentText">
+            <string>nm</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>nm</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>um</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>mm</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>cm</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>m</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
        </item>
        <item>
-        <widget class="QComboBox" name="comboBox_energyCorrectionPlan">
-         <property name="minimumSize">
-          <size>
-           <width>130</width>
-           <height>0</height>
-          </size>
-         </property>
+        <layout class="QHBoxLayout" name="horizontalLayout_6">
          <item>
-          <property name="text">
-           <string>Assume Fixed ZP</string>
-          </property>
+          <widget class="QCheckBox" name="checkBox_includeBackground">
+           <property name="text">
+            <string>Include Background</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
          </item>
          <item>
-          <property name="text">
-           <string>None</string>
-          </property>
+          <spacer name="horizontalSpacer_2">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
          </item>
          <item>
-          <property name="text">
-           <string>Stay In Focus</string>
-          </property>
+          <widget class="QPushButton" name="pushButton_viewBackground">
+           <property name="minimumSize">
+            <size>
+             <width>130</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>View Background...</string>
+           </property>
+          </widget>
          </item>
-        </widget>
+         <item>
+          <widget class="QPushButton" name="pushButton_loadBackground">
+           <property name="minimumSize">
+            <size>
+             <width>130</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Load Background...</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
        <item>
-        <widget class="QLabel" name="label_4">
-         <property name="text">
-          <string>A0:</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLineEdit" name="lineEdit_a0"/>
-       </item>
-       <item>
-        <widget class="QComboBox" name="comboBox_a0Units">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>50</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="currentText">
-          <string>nm</string>
-         </property>
+        <layout class="QHBoxLayout" name="horizontalLayout_7">
          <item>
-          <property name="text">
-           <string>nm</string>
-          </property>
+          <widget class="QCheckBox" name="checkBox_includeMask">
+           <property name="text">
+            <string>Include Mask</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
          </item>
          <item>
-          <property name="text">
-           <string>um</string>
-          </property>
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
          </item>
          <item>
-          <property name="text">
-           <string>mm</string>
-          </property>
+          <widget class="QPushButton" name="pushButton_viewMask">
+           <property name="minimumSize">
+            <size>
+             <width>130</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>View Mask...</string>
+           </property>
+          </widget>
          </item>
          <item>
-          <property name="text">
-           <string>cm</string>
-          </property>
+          <widget class="QPushButton" name="pushButton_loadMask">
+           <property name="minimumSize">
+            <size>
+             <width>130</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Load Mask...</string>
+           </property>
+          </widget>
          </item>
-         <item>
-          <property name="text">
-           <string>m</string>
-          </property>
-         </item>
-        </widget>
+        </layout>
        </item>
       </layout>
      </widget>
@@ -690,7 +826,7 @@
   <tabstop>pushButton_load</tabstop>
   <tabstop>pushButton_saveAs</tabstop>
   <tabstop>pushButton_save</tabstop>
-  <tabstop>checkBox_autosave</tabstop>
+  <tabstop>checkBox_zmq</tabstop>
   <tabstop>graphicsView</tabstop>
   <tabstop>radioButton_real</tabstop>
   <tabstop>radioButton_fourier</tabstop>
@@ -716,6 +852,12 @@
   <tabstop>comboBox_energyCorrectionPlan</tabstop>
   <tabstop>lineEdit_a0</tabstop>
   <tabstop>comboBox_a0Units</tabstop>
+  <tabstop>checkBox_includeBackground</tabstop>
+  <tabstop>pushButton_viewBackground</tabstop>
+  <tabstop>pushButton_loadBackground</tabstop>
+  <tabstop>checkBox_includeMask</tabstop>
+  <tabstop>pushButton_viewMask</tabstop>
+  <tabstop>pushButton_loadMask</tabstop>
  </tabstops>
  <resources/>
  <connections/>

@@ -7,10 +7,13 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 #import qdarkstyle
 
+import zmq
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.figure import Figure
+import datetime
 
 import numpy as np
 import torch as t
@@ -64,7 +67,29 @@ def get_SI_from_lineEdit(textbox, combobox):
     unit = combobox.currentText()
     return convert_to_SI(value, unit)
 
-    
+
+"""
+Below we define some modifications of the near field propagation code that
+are tuned for SPEED
+"""
+
+def make_universal_propagator(shape, spacing, wavelength):
+    """This returns a map from k-space to the phase per propagation distance.
+    This is a really big speedup, because the calculation of the base
+    propagator isn't done in a super efficient manner, so having this stored
+    is a big help.
+    """
+    # We need to choose a value of Z that is small enough that all the phases
+    # will be less than 2pi, but as large as possible otherwise
+
+    min_pitch = t.min(t.as_tensor(spacing))
+    DOF = 2 * min_pitch**2 / wavelength
+
+    z = DOF/2
+    prop = propagators.generate_angular_spectrum_propagator(shape, spacing, wavelength, z, remove_z_phase=True)
+    universal_prop = t.angle(prop) / z
+    return universal_prop
+        
 """
 Below we define the functionality of the main window
 """
@@ -81,6 +106,8 @@ class Window(QMainWindow, Ui_MainWindow):
         self.setupProbeViewer()
         self.setupFileManagement()
         self.setupCalibrationHints()
+
+        self.setupZMQ()
         
         self.disableControls()
 
@@ -90,13 +117,15 @@ class Window(QMainWindow, Ui_MainWindow):
         self.groupBox_calibrationHints.setDisabled(True)
         self.pushButton_saveAs.setDisabled(True)
         self.pushButton_save.setDisabled(True)
-
+        self.checkBox_zmq.setDisabled(True)
+        
     def enableControls(self):
         self.groupBox_probeAdjustment.setDisabled(False)
         self.groupBox_probeViewer.setDisabled(False)
         self.groupBox_calibrationHints.setDisabled(False)
         self.pushButton_saveAs.setDisabled(False)
         self.pushButton_save.setDisabled(False)
+        self.checkBox_zmq.setDisabled(False)
     
     def setupModeControl(self):
         slider = self.horizontalSlider_nmodes
@@ -217,7 +246,24 @@ class Window(QMainWindow, Ui_MainWindow):
         self.radioButton_phase.clicked.connect(self.updateFigure)
         self.spinBox_viewMode.valueChanged.connect(self.updateFigure)
 
-        
+
+    def setupZMQ(self):
+        def whenChecked(state):
+            if state:
+                if not hasattr(self, 'context'):
+                    # We wait to set up zmq until the box is checked for the
+                    # first time
+                    self.context = zmq.Context()
+                    
+                    self.port = "tcp://*:5557"
+                    # Define the socket to publish the probe calibration on
+                    self.pub = self.context.socket(zmq.PUB)
+                    self.pub.bind(self.port)
+                
+                self.emitCalibration()
+                
+        self.checkBox_zmq.stateChanged.connect(whenChecked)
+    
     def setupFileManagement(self):
 
         def getSaveLocation():
@@ -249,6 +295,8 @@ class Window(QMainWindow, Ui_MainWindow):
 
     def setupCalibrationHints(self):
         self.lineEdit_a0.setValidator(QDoubleValidator())
+
+        # TODO: Make load and edit mask and background work
         
         
     def loadFile(self):
@@ -260,8 +308,15 @@ class Window(QMainWindow, Ui_MainWindow):
         if to_load[1] == '':
             return
 
-        # First we load the data and check that it's good
+        # First we load the data and check that it's good.
+        # Note that we also copy everything over to a separate dictionary.
+        # This is done so that we can load from result files that might have
+        # lots of extra info we don't need, and we don't need to keep all
+        # that extra data in memory
+
+        
         loaded_data = loadmat(to_load[0])
+        self.base_data = {}
         if not 'probe' in loaded_data:
             print('Dataset has no probe info, not loading')
             return
@@ -269,22 +324,43 @@ class Window(QMainWindow, Ui_MainWindow):
         if len(loaded_data['probe'].shape) < 2:
             print('Probe has not enough dimensions, not loading')
             return
+
+        self.base_data['probe'] = loaded_data['probe']
         
         # This always unravels all the modes so the probe is n_modesxNxM
-        if len(loaded_data['probe'].shape) == 2:
-            loaded_data['probe'] = np.expand_dims(loaded_data['probe'], 0)
-        n_modes = np.prod(loaded_data['probe'].shape[:-2])
-        loaded_data['probe'] = loaded_data['probe'].reshape(
-            (n_modes,) + loaded_data['probe'].shape[-2:])
+        if len(self.base_data['probe'].shape) == 2:
+            self.base_data['probe'] = np.expand_dims(self.base_data['probe'], 0)
+
+        n_modes = np.prod(self.base_data['probe'].shape[:-2])
+        self.base_data['probe'] = self.base_data['probe'].reshape(
+            (n_modes,) + self.base_data['probe'].shape[-2:])
 
         if not 'wavelength' in loaded_data:
             print('Dataset has no wavelegth info, not loading')
             return
+
+        # Since this is coming from a .mat file, the constant gets loaded
+        # in as part of a 2D matrix
+        self.base_data['wavelength'] = loaded_data['wavelength'].ravel()[0]
+        
         if not 'basis' in loaded_data:
             print('Dataset has no info on the probe basis, not loading')
             return
+
+        self.base_data['basis'] = loaded_data['basis']
+
+        if 'A0' in loaded_data:
+            self.base_data['A0'] = loaded_data['A0']
+        elif 'a0' in loaded_data:
+            self.base_data['A0'] = loaded_data['a0']
+            
+        if 'mask' in loaded_data:
+            self.base_data['mask'] = loaded_data['mask']
+
+        if 'background' in loaded_data:
+            self.base_data['background'] = loaded_data['background']
         
-        self.base_data = loaded_data
+        # This is initializing self.probe, which stores the processed probe
         self.probe = loaded_data['probe']
         
         # Now we update the controls to be initialized with resonable values
@@ -298,7 +374,7 @@ class Window(QMainWindow, Ui_MainWindow):
         
         # The energy slider
         hc = 1.986446e-25 # hc in Joule-meters
-        energy = hc / loaded_data['wavelength']
+        energy = hc / self.base_data['wavelength']
         energy = autoset_from_SI(energy, self.lineEdit_e, self.comboBox_eUnits,
                                  format_string='%0.2f')
         minval = int(np.floor(energy*0.9))
@@ -355,14 +431,21 @@ class Window(QMainWindow, Ui_MainWindow):
     def fullRefresh(self):
         self.recalculate()
         self.updateFigure()
-        if self.checkBox_autosave.checkState():
-            self.saveFile()
+        if self.checkBox_zmq.checkState():
+            self.emitCalibration()
         
     def recalculate(self):
         # Order of operations
         # 1: Orthogonalize and clip probes
         # 2: Update the probe energy
         # 3: Propagate correct distance
+
+        # TODO: Update this so that the probe is saved in Fourier and real
+        # space, both before and after propagation, to speed up the calculation
+        # and display
+
+        # TODO: Update this to allow for calculations on the GPU, if available,
+        # to speed up the processing.
 
         # This is a pretty expensive operation, and it will rarely change,
         # so I think it's worth it to avoid recalculating it each time.
@@ -381,13 +464,20 @@ class Window(QMainWindow, Ui_MainWindow):
 
         # TODO: Actually implement the energy update
         
-        shape = clipped_probes.shape[-2:]
-        spacing = t.as_tensor(np.linalg.norm(self.base_data['basis'], axis=0))
-        wavelength = self.base_data['wavelength'].ravel()[0]
+        if not hasattr(self, 'universal_prop'):
+            # Whenever something happens that has to change this, for example
+            # when the energy changes, then the pattern is to delete the
+            # universal propagator and it will be recalculated here.
+            
+            shape = clipped_probes.shape[-2:]
+            spacing = t.as_tensor(np.linalg.norm(self.base_data['basis'], axis=0))
+            wavelength = self.base_data['wavelength'].ravel()[0]
+            self.universal_prop = make_universal_propagator(shape, spacing, wavelength)
+            self.universal_prop = (1j * self.universal_prop)#.to(device='cuda:0')
         z = get_SI_from_lineEdit(self.lineEdit_dz, self.comboBox_dzUnits)
 
         if z != 0:
-            prop = propagators.generate_angular_spectrum_propagator(shape, spacing, wavelength, z, remove_z_phase=True)
+            prop = t.exp(z * self.universal_prop)
             self.probe = propagators.near_field(clipped_probes, prop).numpy()
         else:
             self.probe = clipped_probes
@@ -412,8 +502,19 @@ class Window(QMainWindow, Ui_MainWindow):
         
         self.im.set_data(to_show)
         self.canvas.draw_idle()
+
+    def emitCalibration(self):
+        #TODO: update the energy here
+        save_data = copy(self.base_data)
+        save_data['probe'] = self.probe
+        self.pub.send_pyobj(save_data)
+        currentTime = datetime.datetime.now().strftime('%H:%M:%S')
+        self.statusBar().showMessage('Published to ØMQ ('
+                                     + self.port
+                                     + ') at ' + currentTime)
         
     def saveFile(self, filename=None):
+        t0 = time()
         if filename is None:
             filename = self.lineEdit_saveLocation.text()
 
@@ -425,13 +526,12 @@ class Window(QMainWindow, Ui_MainWindow):
         save_data = copy(self.base_data)
         save_data['probe'] = self.probe
         savemat(filename, save_data)
-
         
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setApplicationName('PCW7012')
     #app.setStyleSheet(qdarkstyle.load_stylesheet())
-        
+
     win = Window()
     win.show()
     sys.exit(app.exec())
