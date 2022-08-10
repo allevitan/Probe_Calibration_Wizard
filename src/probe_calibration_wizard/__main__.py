@@ -14,6 +14,9 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.figure import Figure
+from matplotlib import pyplot as plt
+plt.ion()
+
 import datetime
 
 import numpy as np
@@ -310,8 +313,87 @@ class Window(QMainWindow, Ui_MainWindow):
             self.emitCalibrationIfChecked)
         self.spinBox_resolution.valueChanged.connect(
             self.emitCalibrationIfChecked)
-        # TODO: Make load and edit mask and background work
+
+        self.pushButton_loadBackground.clicked.connect(
+            self.loadBackground)
+        self.pushButton_loadMask.clicked.connect(
+            self.loadMask)
+
+        self.pushButton_viewBackground.clicked.connect(
+            self.viewBackground)
+        self.pushButton_viewMask.clicked.connect(
+            self.viewMask)
+
+    def loadBackground(self):
+        to_load = QFileDialog.getOpenFileName(
+            caption='Load a Background from a Probe Calibration',
+            filter='Probe Calibration (*.mat);; CXI ptycho result (*.cxi)')
+
+        # If they cancelled the load
+        if to_load[1] == '':
+            return
+
+        loaded_data = loadmat(to_load[0])
         
+        if 'background' in loaded_data:
+            if loaded_data['background'].shape != self.probe.shape[-2:]:
+                self.statusBar().showMessage(
+                    'Background shape ('
+                    + str(loaded_data['background'].shape)
+                    +') did not match probe.')
+                return
+            
+            self.base_data['background'] = loaded_data['background']
+            self.pushButton_viewBackground.setDisabled(False)
+            self.checkBox_includeBackground.setDisabled(False)
+            self.checkBox_includeBackground.setChecked(True)
+        else:
+            self.statusBar().showMessage('No background found in file.')
+
+    def loadMask(self):
+        to_load = QFileDialog.getOpenFileName(
+            caption='Load a Mask from a Probe Calibration',
+            filter='Probe Calibration (*.mat);; CXI ptycho result (*.cxi)')
+
+        # If they cancelled the load
+        if to_load[1] == '':
+            return
+
+        loaded_data = loadmat(to_load[0])
+        
+        if 'mask' in loaded_data:
+            if loaded_data['mask'].shape != self.probe.shape[-2:]:
+                self.statusBar().showMessage(
+                    'Background shape ('
+                    + str(loaded_data['mask'].shape)
+                    + ') did not match probe.')
+                return
+
+            self.base_data['mask'] = loaded_data['mask']
+            self.pushButton_viewMask.setDisabled(False)
+            self.checkBox_includeMask.setDisabled(False)
+            self.checkBox_includeMask.setChecked(True)
+        else:
+            self.statusBar().showMessage('No mask found in file.')
+
+    def viewBackground(self):
+        plt.figure()
+        plt.imshow(self.base_data['background'])
+        plt.colorbar()
+        plt.title('Detector Background')
+        plt.xlabel('j (pixels)')
+        plt.ylabel('i (pixels)')
+        plt.show()
+
+    def viewMask(self):
+        plt.figure()
+        plt.imshow(self.base_data['mask'])
+        plt.colorbar()
+        plt.title('Detector Mask')
+        plt.xlabel('j (pixels)')
+        plt.ylabel('i (pixels)')
+        plt.show()
+        pass
         
     def loadFile(self):
         to_load = QFileDialog.getOpenFileName(
@@ -330,15 +412,31 @@ class Window(QMainWindow, Ui_MainWindow):
 
         
         loaded_data = loadmat(to_load[0])
-        self.base_data = {}
         if not 'probe' in loaded_data:
-            print('Dataset has no probe info, not loading')
+            self.statusBar().showMessage(
+                'Dataset has no probe info, not loading')
             return
 
         if len(loaded_data['probe'].shape) < 2:
-            print('Probe has not enough dimensions, not loading')
+            self.statusBar().showMessage(
+                'Probe has not enough dimensions, not loading')
             return
 
+        if not 'wavelength' in loaded_data:
+            self.statusBar().showMessage(
+                'Dataset has no wavelegth info, not loading')
+            return
+
+        
+        if not 'basis' in loaded_data:
+            self.statusBar().showMessage(
+                'Dataset has no info on the probe basis, not loading')
+            return
+
+        # All the checks need to go before any loading happens, otherwise
+        # it could end up in a bad state during a failed load
+        
+        self.base_data = {}
         self.base_data['probe'] = loaded_data['probe']
         
         # This always unravels all the modes so the probe is n_modesxNxM
@@ -349,26 +447,32 @@ class Window(QMainWindow, Ui_MainWindow):
         self.base_data['probe'] = self.base_data['probe'].reshape(
             (n_modes,) + self.base_data['probe'].shape[-2:])
 
-        if not 'wavelength' in loaded_data:
-            print('Dataset has no wavelegth info, not loading')
-            return
-
         # Since this is coming from a .mat file, the constant gets loaded
         # in as part of a 2D matrix
         self.base_data['wavelength'] = loaded_data['wavelength'].ravel()[0]
         
-        if not 'basis' in loaded_data:
-            print('Dataset has no info on the probe basis, not loading')
-            return
-
         self.base_data['basis'] = loaded_data['basis']
         self.basis = loaded_data['basis']
 
         if 'mask' in loaded_data:
             self.base_data['mask'] = loaded_data['mask']
+            self.pushButton_viewMask.setDisabled(False)
+            self.checkBox_includeMask.setDisabled(False)
+            self.checkBox_includeMask.setChecked(True)
+        else:
+            self.pushButton_viewMask.setDisabled(True)
+            self.checkBox_includeMask.setDisabled(True)
+            self.checkBox_includeMask.setChecked(False)
 
         if 'background' in loaded_data:
             self.base_data['background'] = loaded_data['background']
+            self.pushButton_viewBackground.setDisabled(False)
+            self.checkBox_includeBackground.setDisabled(False)
+            self.checkBox_includeBackground.setChecked(True)
+        else:
+            self.pushButton_viewBackground.setDisabled(True)
+            self.checkBox_includeBackground.setDisabled(True)
+            self.checkBox_includeBackground.setChecked(False)
         
         # This is initializing self.probe, which stores the processed probe
         self.probe = loaded_data['probe']
@@ -383,8 +487,8 @@ class Window(QMainWindow, Ui_MainWindow):
         self.checkBox_ortho.setCheckState(False)
         
         # The energy slider
-        energy = hc / self.base_data['wavelength']
-        energy = autoset_from_SI(energy, self.lineEdit_e, self.comboBox_eUnits,
+        self.energy = hc / self.base_data['wavelength']
+        energy = autoset_from_SI(self.energy, self.lineEdit_e, self.comboBox_eUnits,
                                  format_string='%0.2f')
         minval = int(np.floor(energy*0.9))
         maxval = int(np.ceil(energy*1.1))
@@ -392,6 +496,7 @@ class Window(QMainWindow, Ui_MainWindow):
         self.lineEdit_eMax.setText(str(maxval))
         self.horizontalSlider_e.setRange(minval, maxval)
         self.horizontalSlider_e.setValue(int(np.round(energy)))
+
 
         # TODO: This will fail if the units box is changed
         self.pushButton_eReset.resetTo = self.lineEdit_e.text()
@@ -413,7 +518,6 @@ class Window(QMainWindow, Ui_MainWindow):
         self.horizontalSlider_dz.setValue(0)
         self.comboBox_dzUnits.setCurrentIndex(idx)
 
-        # TODO: this is wrong, it doesn't deal with units properly
         if 'A0' in loaded_data:
             A0_SI = loaded_data['A0'].ravel()[0]
             autoset_from_SI(A0_SI, self.lineEdit_a0,
@@ -470,13 +574,6 @@ class Window(QMainWindow, Ui_MainWindow):
         # 2: Update the probe energy
         # 3: Propagate correct distance
 
-        # TODO: Update this so that the probe is saved in Fourier and real
-        # space, both before and after propagation, to speed up the calculation
-        # and display
-
-        # TODO: Update this to allow for calculations on the GPU, if available,
-        # to speed up the processing.
-
         # This is a pretty expensive operation, and it will rarely change,
         # so I think it's worth it to avoid recalculating it each time.
         # Whenever anything happens that needs to recalculate this, the
@@ -492,18 +589,19 @@ class Window(QMainWindow, Ui_MainWindow):
         nmodes = self.spinBox_nmodes.value()
         clipped_probes = self.orthogonalized_probes[:nmodes]
 
-        energy = get_SI_from_lineEdit(self.lineEdit_e, self.comboBox_eUnits)
+        self.energy = get_SI_from_lineEdit(self.lineEdit_e,
+                                           self.comboBox_eUnits)
         base_energy = hc / self.base_data['wavelength']
         if hasattr(self, 'last_base_energy'):
             if last_base_energy != base_energy:
                 delattr(self, 'universal_prop')
         last_base_energy = base_energy
         
-        energy_ratio = energy / base_energy
+        energy_ratio = self.energy / base_energy
         energy_changed_probes = change_energy(clipped_probes, energy_ratio)
         
         A0 = get_SI_from_lineEdit(self.lineEdit_a0, self.comboBox_a0Units)
-        energy_propagation_correction = A0 * (base_energy - energy)
+        energy_propagation_correction = A0 * (base_energy - self.energy)
 
         self.basis = self.base_data['basis'] / energy_ratio
         
@@ -515,7 +613,7 @@ class Window(QMainWindow, Ui_MainWindow):
             shape = clipped_probes.shape[-2:]
             spacing = t.as_tensor(np.linalg.norm(
                 self.basis, axis=0))
-            wavelength = hc / energy
+            wavelength = hc / self.energy
             self.universal_prop = make_universal_propagator(
                 shape, spacing, wavelength)
             self.universal_prop = (1j * self.universal_prop)
@@ -532,15 +630,9 @@ class Window(QMainWindow, Ui_MainWindow):
             self.probe = energy_changed_probes.numpy()
             
     def updateFigure(self):
-        # TODO: Make it rescale the colorbar on update
-        # TODO: Make the axes change to frequency for Fourier space
-        # TODO: Make the colormap change between real and Fourier space
-        # TODO: Make the units of the axes something sensible depending on
-        # the extent
         probe_mode = self.spinBox_viewMode.value()
         to_show = self.probe[probe_mode-1]
         
-        # TODO: This doesn't properly update with energy
         basis_norm = np.linalg.norm(self.basis, axis=0)
         
         if self.radioButton_fourier.isChecked():
@@ -602,7 +694,7 @@ class Window(QMainWindow, Ui_MainWindow):
     def collect_results(self):
         results = copy(self.base_data)
 
-        #TODO: update the energy (and therefore also basis) here
+        results['wavelength'] = hc / self.energy
 
         results['probe'] = self.probe
         results['basis'] = self.basis
@@ -615,8 +707,13 @@ class Window(QMainWindow, Ui_MainWindow):
             A0_unit = self.comboBox_a0Units.currentText()
             results['A0'] = convert_to_SI(A0, A0_unit)
 
-        # TODO: Save out the background and mask if desired
-        
+        if not self.checkBox_includeBackground.checkState():
+            if 'background' in results:
+                results.pop('background')
+        if not self.checkBox_includeMask.checkState():
+            if 'mask' in results:
+                results.pop('mask')
+
         return results
 
     def emitCalibrationIfChecked(self):
