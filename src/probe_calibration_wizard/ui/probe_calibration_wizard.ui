@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>500</width>
-    <height>1067</height>
+    <height>964</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -34,27 +34,6 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout">
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout">
-         <item>
-          <widget class="QLabel" name="label_5">
-           <property name="text">
-            <string>Save Location:</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLineEdit" name="lineEdit_saveLocation"/>
-         </item>
-         <item>
-          <widget class="QPushButton" name="pushButton_chooseSaveLocation">
-           <property name="text">
-            <string>Choose...</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
           <widget class="QPushButton" name="pushButton_load">
@@ -67,13 +46,6 @@
           <widget class="QPushButton" name="pushButton_saveAs">
            <property name="text">
             <string>Save As...</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="pushButton_save">
-           <property name="text">
-            <string>Save</string>
            </property>
           </widget>
          </item>
@@ -305,6 +277,18 @@
          </item>
          <item row="0" column="0">
           <widget class="QLabel" name="label">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>16777215</height>
+            </size>
+           </property>
            <property name="text">
             <string>Δ&amp;Z:</string>
            </property>
@@ -334,6 +318,18 @@
          </item>
          <item row="2" column="0">
           <widget class="QLabel" name="label_2">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>16777215</height>
+            </size>
+           </property>
            <property name="text">
             <string>&amp;E:</string>
            </property>
@@ -366,7 +362,7 @@
             </size>
            </property>
            <property name="currentText">
-            <string>meV</string>
+            <string>ueV</string>
            </property>
            <item>
             <property name="text">
@@ -571,76 +567,34 @@
          </item>
         </layout>
        </item>
-       <item alignment="Qt::AlignHCenter">
-        <widget class="QCheckBox" name="checkBox_updateDzWithE">
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
-         <property name="text">
-          <string>Update ΔZ with E to simulate chromatic aberration</string>
+       <item>
+        <widget class="Line" name="line_5">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
          </property>
         </widget>
        </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <widget class="QGroupBox" name="groupBox_calibrationHints">
-      <property name="title">
-       <string>Calibration Hints &amp;&amp; Additional Information</string>
-      </property>
-      <layout class="QVBoxLayout" name="verticalLayout_5">
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <layout class="QHBoxLayout" name="horizontalLayout">
          <item>
-          <widget class="QLabel" name="label_3">
-           <property name="text">
-            <string>Energy Correction Plan:</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QComboBox" name="comboBox_energyCorrectionPlan">
+          <widget class="QLabel" name="label_4">
            <property name="minimumSize">
             <size>
-             <width>120</width>
+             <width>0</width>
              <height>0</height>
             </size>
            </property>
-           <item>
-            <property name="text">
-             <string>Fixed ZP</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>None</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Stay In Focus</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item>
-          <spacer name="horizontalSpacer">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
+           <property name="maximumSize">
             <size>
-             <width>40</width>
-             <height>20</height>
+             <width>16777215</width>
+             <height>16777215</height>
             </size>
            </property>
-          </spacer>
-         </item>
-         <item>
-          <widget class="QLabel" name="label_4">
            <property name="text">
-            <string>&amp;A0:</string>
+            <string>-&amp;A1:</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
            </property>
            <property name="buddy">
             <cstring>lineEdit_a0</cstring>
@@ -651,7 +605,7 @@
           <widget class="QLineEdit" name="lineEdit_a0">
            <property name="minimumSize">
             <size>
-             <width>60</width>
+             <width>70</width>
              <height>0</height>
             </size>
            </property>
@@ -718,32 +672,8 @@
            </item>
           </widget>
          </item>
-        </layout>
-       </item>
-       <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_8">
          <item>
-          <widget class="QLabel" name="label_6">
-           <property name="text">
-            <string># of Iterations:</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="spinBox_iterations">
-           <property name="maximum">
-            <number>999</number>
-           </property>
-           <property name="value">
-            <number>10</number>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="horizontalSpacer_4">
+          <spacer name="horizontalSpacer">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
@@ -756,27 +686,26 @@
           </spacer>
          </item>
          <item>
-          <widget class="QLabel" name="label_9">
+          <widget class="QCheckBox" name="checkBox_updateDzWithE">
+           <property name="styleSheet">
+            <string notr="true"/>
+           </property>
            <property name="text">
-            <string>RPI Resolution:</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="spinBox_resolution">
-           <property name="maximum">
-            <number>960</number>
-           </property>
-           <property name="value">
-            <number>256</number>
+            <string>Update ΔZ with E assuming fixed ZP</string>
            </property>
           </widget>
          </item>
         </layout>
        </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="groupBox_calibrationHints">
+      <property name="title">
+       <string>Additional Calibrations</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_5">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_6">
          <item>
@@ -901,11 +830,8 @@
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <tabstops>
-  <tabstop>lineEdit_saveLocation</tabstop>
-  <tabstop>pushButton_chooseSaveLocation</tabstop>
   <tabstop>pushButton_load</tabstop>
   <tabstop>pushButton_saveAs</tabstop>
-  <tabstop>pushButton_save</tabstop>
   <tabstop>checkBox_zmq</tabstop>
   <tabstop>graphicsView</tabstop>
   <tabstop>radioButton_real</tabstop>
@@ -928,10 +854,6 @@
   <tabstop>lineEdit_eMax</tabstop>
   <tabstop>comboBox_eUnits</tabstop>
   <tabstop>pushButton_eReset</tabstop>
-  <tabstop>checkBox_updateDzWithE</tabstop>
-  <tabstop>comboBox_energyCorrectionPlan</tabstop>
-  <tabstop>lineEdit_a0</tabstop>
-  <tabstop>comboBox_a0Units</tabstop>
   <tabstop>checkBox_includeBackground</tabstop>
   <tabstop>pushButton_viewBackground</tabstop>
   <tabstop>pushButton_loadBackground</tabstop>

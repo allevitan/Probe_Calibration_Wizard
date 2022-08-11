@@ -129,7 +129,6 @@ class Window(QMainWindow, Ui_MainWindow):
         self.groupBox_probeViewer.setDisabled(True)
         self.groupBox_calibrationHints.setDisabled(True)
         self.pushButton_saveAs.setDisabled(True)
-        self.pushButton_save.setDisabled(True)
         self.checkBox_zmq.setDisabled(True)
         
     def enableControls(self):
@@ -137,7 +136,6 @@ class Window(QMainWindow, Ui_MainWindow):
         self.groupBox_probeViewer.setDisabled(False)
         self.groupBox_calibrationHints.setDisabled(False)
         self.pushButton_saveAs.setDisabled(False)
-        self.pushButton_save.setDisabled(False)
         self.checkBox_zmq.setDisabled(False)
     
     def setupModeControl(self):
@@ -265,8 +263,12 @@ class Window(QMainWindow, Ui_MainWindow):
         self.context = zmq.Context()
         self.port = port
         def whenChecked(state):
-            if state:
-                if not hasattr(self, 'pub'):
+            # checking for hasattr just avoids any weirdness if there still is
+            # a port already connected for some reason.
+            if state and not hasattr(self, 'pub'):
+                port, ok = QInputDialog.getText(self, 'Choose Port to Publish on', 'Port:', text=self.port)
+                if ok:
+                    self.port = port
                     # We wait to set up zmq until the box is checked for the
                     # first time
                     try:
@@ -294,20 +296,6 @@ class Window(QMainWindow, Ui_MainWindow):
         self.checkBox_zmq.clicked.connect(whenChecked)
     
     def setupFileManagement(self):
-
-        def getSaveLocation():
-            saveloc = QFileDialog.getSaveFileName(
-                caption='Save Location',
-                directory=self.lineEdit_saveLocation.text(),
-                filter='Probe Calibration (*.mat)')
-            if saveloc[1] != '':
-                self.lineEdit_saveLocation.setText(saveloc[0])
-        
-
-        default_saveloc = os.path.join(os.getcwd(), 'my_probe.mat')
-        self.lineEdit_saveLocation.setText(default_saveloc)
-        self.pushButton_chooseSaveLocation.clicked.connect(getSaveLocation)
-
         self.pushButton_load.clicked.connect(self.askAndLoadFile)
 
         def saveAs():
@@ -318,8 +306,6 @@ class Window(QMainWindow, Ui_MainWindow):
                 self.saveFile(saveloc[0])
                 
         self.pushButton_saveAs.clicked.connect(saveAs)
-
-        self.pushButton_save.clicked.connect(lambda x: self.saveFile())
 
         self.setAcceptDrops(True)
 
@@ -336,11 +322,6 @@ class Window(QMainWindow, Ui_MainWindow):
 
     def setupCalibrationHints(self):
         self.lineEdit_a0.setValidator(QDoubleValidator())
-
-        self.spinBox_iterations.valueChanged.connect(
-            self.emitCalibrationIfChecked)
-        self.spinBox_resolution.valueChanged.connect(
-            self.emitCalibrationIfChecked)
 
         self.pushButton_loadBackground.clicked.connect(
             self.loadBackground)
@@ -565,18 +546,6 @@ class Window(QMainWindow, Ui_MainWindow):
                             self.comboBox_a0Units, format_string='%0.3f',
                             target=40)
 
-        if 'iterations' in loaded_data:
-            iterations = loaded_data['iterations'].ravel()[0]
-            self.spinBox_iterations.setValue(iterations)
-
-        min_probe_size = np.min(self.probe.shape[-2:])
-        
-        self.spinBox_resolution.setRange(1, min_probe_size)
-        self.spinBox_resolution.setValue(min_probe_size//4)
-        if 'resolution' in loaded_data:
-            resolution = loaded_data['resolution'].ravel()[0]
-            self.spinBox_resolution.setValue(resolution)
-            
         # Now we plot the loaded probe
         self.fig.clear()
         self.axes = self.fig.add_subplot(111)
@@ -738,8 +707,6 @@ class Window(QMainWindow, Ui_MainWindow):
         results['probe'] = self.probe
         results['basis'] = self.basis
 
-        results['iterations'] = self.spinBox_iterations.value()
-        results['resolution'] = self.spinBox_resolution.value()
 
         if self.lineEdit_a0.text().strip() != '':
             A0 = float(self.lineEdit_a0.text().strip())
@@ -768,10 +735,7 @@ class Window(QMainWindow, Ui_MainWindow):
                                      + self.pub.last_endpoint.decode("utf-8")
                                      + ') at ' + currentTime)
         
-    def saveFile(self, filename=None):
-        if filename is None:
-            filename = self.lineEdit_saveLocation.text()
-
+    def saveFile(self, filename):
         # Not sure if this is the most sane approach
         if filename[-4:].lower() != '.mat':
             filename += '.mat'
