@@ -292,7 +292,7 @@ class Window(QMainWindow, Ui_MainWindow):
         self.lineEdit_saveLocation.setText(default_saveloc)
         self.pushButton_chooseSaveLocation.clicked.connect(getSaveLocation)
 
-        self.pushButton_load.clicked.connect(self.loadFile)
+        self.pushButton_load.clicked.connect(self.askAndLoadFile)
 
         def saveAs():
             saveloc = QFileDialog.getSaveFileName(
@@ -305,6 +305,18 @@ class Window(QMainWindow, Ui_MainWindow):
 
         self.pushButton_save.clicked.connect(lambda x: self.saveFile())
 
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.accept()
+        else:
+            e.ignore()
+        
+    def dropEvent(self, e):
+        files = [u.toLocalFile() for u in e.mimeData().urls()]
+        # We only support loading one file at once, so I just load the first
+        self.loadFile(files[0])
 
     def setupCalibrationHints(self):
         self.lineEdit_a0.setValidator(QDoubleValidator())
@@ -395,7 +407,7 @@ class Window(QMainWindow, Ui_MainWindow):
         plt.show()
         pass
         
-    def loadFile(self):
+    def askAndLoadFile(self):
         to_load = QFileDialog.getOpenFileName(
             caption='Load a Probe Calibration',
             filter='Probe Calibration (*.mat);; CXI ptycho result (*.cxi)')
@@ -404,14 +416,22 @@ class Window(QMainWindow, Ui_MainWindow):
         if to_load[1] == '':
             return
 
+        self.loadFile(to_load[0])
+    
+    def loadFile(self, to_load):
         # First we load the data and check that it's good.
         # Note that we also copy everything over to a separate dictionary.
         # This is done so that we can load from result files that might have
         # lots of extra info we don't need, and we don't need to keep all
         # that extra data in memory
 
-        
-        loaded_data = loadmat(to_load[0])
+        try:
+            loaded_data = loadmat(to_load)
+        except ValueError as e:
+            self.statusBar().showMessage(
+                'File does not appear to be a .mat file, unable to load.')
+            return
+            
         if not 'probe' in loaded_data:
             self.statusBar().showMessage(
                 'Dataset has no probe info, not loading')
@@ -562,6 +582,9 @@ class Window(QMainWindow, Ui_MainWindow):
 
         self.updateFigure()
         self.enableControls()
+
+        self.statusBar().showMessage(
+            'File "' + to_load + '" loaded successfully.')
 
     def fullRefresh(self):
         self.recalculate()
@@ -744,7 +767,8 @@ class Window(QMainWindow, Ui_MainWindow):
 def main(argv=sys.argv):
 
     parser = argparse.ArgumentParser(description='Probe Calibration Wizard Seven Thousand Twelve')
-    parser.add_argument('port', nargs='?', type=str, help='ZeroMQ port to broadcast on', default='tcp://*:5557')
+    parser.add_argument('filename', nargs='?', type=str, help='A file to load in while opening the app', default='')
+    parser.add_argument('--port', '-p', type=str, help='ZeroMQ port to broadcast on', default='tcp://*:5557')
     args = parser.parse_args()
     
     app = QApplication(sys.argv)
@@ -752,6 +776,8 @@ def main(argv=sys.argv):
     #app.setStyleSheet(qdarkstyle.load_stylesheet())
 
     win = Window(args.port)
+    if args.filename.strip() != '':
+        win.loadFile(args.filename)
     win.show()
     return app.exec()
 
