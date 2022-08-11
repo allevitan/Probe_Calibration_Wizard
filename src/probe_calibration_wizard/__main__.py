@@ -261,21 +261,37 @@ class Window(QMainWindow, Ui_MainWindow):
 
 
     def setupZMQ(self, port):
+
+        self.context = zmq.Context()
+        self.port = port
         def whenChecked(state):
             if state:
-                if not hasattr(self, 'context'):
+                if not hasattr(self, 'pub'):
                     # We wait to set up zmq until the box is checked for the
                     # first time
-                    self.context = zmq.Context()
-                    
-                    self.port = port
-                    # Define the socket to publish the probe calibration on
-                    self.pub = self.context.socket(zmq.PUB)
-                    self.pub.bind(self.port)
-                
+                    try:
+                        # Define the socket to publish the probe calibration on
+                        self.pub = self.context.socket(zmq.PUB)
+                        self.pub.bind(self.port)
+                    except zmq.error.ZMQError as e:
+                        if e.errno == 98: # Port already in use
+                            if hasattr(self, 'pub'):
+                                delattr(self, 'pub')
+                            self.checkBox_zmq.setChecked(False)
+                            self.statusBar().showMessage(
+                                'ØMQError: Address already in use. Perhaps another copy of PCW is running?')
+                            return
+                        else:
+                            raise e
+                        
                 self.emitCalibration()
+            else:
+                self.pub.unbind(self.pub.last_endpoint)
+                delattr(self, 'pub')
+                self.statusBar().showMessage(
+                    'ØMQ Successfully Disconnected')
                 
-        self.checkBox_zmq.stateChanged.connect(whenChecked)
+        self.checkBox_zmq.clicked.connect(whenChecked)
     
     def setupFileManagement(self):
 
@@ -749,7 +765,7 @@ class Window(QMainWindow, Ui_MainWindow):
         self.pub.send_pyobj(save_data)
         currentTime = datetime.datetime.now().strftime('%H:%M:%S')
         self.statusBar().showMessage('Published to ØMQ ('
-                                     + self.port
+                                     + self.pub.last_endpoint.decode("utf-8")
                                      + ') at ' + currentTime)
         
     def saveFile(self, filename=None):
