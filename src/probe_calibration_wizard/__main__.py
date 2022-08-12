@@ -259,7 +259,6 @@ class Window(QMainWindow, Ui_MainWindow):
 
 
     def setupZMQ(self, port):
-
         self.context = zmq.Context()
         self.port = port
         def whenChecked(state):
@@ -286,8 +285,13 @@ class Window(QMainWindow, Ui_MainWindow):
                         else:
                             raise e
                         
-                self.emitCalibration()
+                    self.timer = QTimer()
+                    self.timer.timeout.connect(self.emitCalibration)
+                    self.timer.start(1000)
+                else:
+                    self.checkBox_zmq.setChecked(False)
             else:
+                self.timer.stop()
                 self.pub.unbind(self.pub.last_endpoint)
                 delattr(self, 'pub')
                 self.statusBar().showMessage(
@@ -327,11 +331,15 @@ class Window(QMainWindow, Ui_MainWindow):
             self.loadBackground)
         self.pushButton_loadMask.clicked.connect(
             self.loadMask)
+        self.checkBox_includeMask.clicked.connect(
+            self.emitCalibrationIfChecked)
 
         self.pushButton_viewBackground.clicked.connect(
             self.viewBackground)
         self.pushButton_viewMask.clicked.connect(
             self.viewMask)
+        self.checkBox_includeBackground.clicked.connect(
+            self.emitCalibrationIfChecked)
 
     def loadBackground(self):
         to_load = QFileDialog.getOpenFileName(
