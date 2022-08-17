@@ -597,12 +597,12 @@
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
            </property>
            <property name="buddy">
-            <cstring>lineEdit_a0</cstring>
+            <cstring>lineEdit_a1</cstring>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QLineEdit" name="lineEdit_a0">
+          <widget class="QLineEdit" name="lineEdit_a1">
            <property name="minimumSize">
             <size>
              <width>70</width>
@@ -618,7 +618,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="comboBox_a0Units">
+          <widget class="QComboBox" name="comboBox_a1Units">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -823,7 +823,7 @@
      <x>0</x>
      <y>0</y>
      <width>500</width>
-     <height>20</height>
+     <height>24</height>
     </rect>
    </property>
   </widget>
@@ -864,7 +864,7 @@
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="buttonGroup_realVsFourier"/>
   <buttongroup name="buttonGroup_amplitudeVsPhase"/>
+  <buttongroup name="buttonGroup_realVsFourier"/>
  </buttongroups>
 </ui>

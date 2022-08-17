@@ -28,6 +28,11 @@ from cdtools.tools import propagators, analysis
 from probe_calibration_wizard.probe_calibration_wizard_ui import Ui_MainWindow
 from probe_calibration_wizard.update_probe_energy import change_energy
 
+# TODO: crashes when A1 is not defined and anything is updated
+# TODO: can't accept probes that don't have a third dimension
+# TODO: crashes when number of modes is inceased and is asked to display one of the new modes, presumably it's not recalculating the probe or something.
+# TODO: propagator doesn't seem to update properly when a second probe is added with a different shape from the first
+
 """
 This section deals with unit conversions
 """
@@ -325,7 +330,7 @@ class Window(QMainWindow, Ui_MainWindow):
         self.loadFile(files[0])
 
     def setupCalibrationHints(self):
-        self.lineEdit_a0.setValidator(QDoubleValidator())
+        self.lineEdit_a1.setValidator(QDoubleValidator())
 
         self.pushButton_loadBackground.clicked.connect(
             self.loadBackground)
@@ -543,15 +548,15 @@ class Window(QMainWindow, Ui_MainWindow):
         self.horizontalSlider_dz.setValue(0)
         self.comboBox_dzUnits.setCurrentIndex(idx)
 
-        if 'A0' in loaded_data:
-            A0_SI = loaded_data['A0'].ravel()[0]
-            autoset_from_SI(A0_SI, self.lineEdit_a0,
-                            self.comboBox_a0Units, format_string='%0.3f',
+        if 'A1' in loaded_data:
+            A1_SI = loaded_data['A1'].ravel()[0]
+            autoset_from_SI(A1_SI, self.lineEdit_a1,
+                            self.comboBox_a1Units, format_string='%0.3f',
                             target=40)
-        elif 'a0' in loaded_data:
-            A0_SI = loaded_data['a0'].ravel()[0]
-            autoset_from_SI(A0_SI, self.lineEdit_a0,
-                            self.comboBox_a0Units, format_string='%0.3f',
+        elif 'a1' in loaded_data:
+            A1_SI = loaded_data['a1'].ravel()[0]
+            autoset_from_SI(A1_SI, self.lineEdit_a1,
+                            self.comboBox_a1Units, format_string='%0.3f',
                             target=40)
 
         # Now we plot the loaded probe
@@ -616,8 +621,8 @@ class Window(QMainWindow, Ui_MainWindow):
         energy_ratio = self.energy / base_energy
         energy_changed_probes = change_energy(clipped_probes, energy_ratio)
         
-        A0 = get_SI_from_lineEdit(self.lineEdit_a0, self.comboBox_a0Units)
-        energy_propagation_correction = A0 * (base_energy - self.energy)
+        A1 = get_SI_from_lineEdit(self.lineEdit_a1, self.comboBox_a1Units)
+        energy_propagation_correction = A1 * (base_energy - self.energy)
 
         self.basis = self.base_data['basis'] / energy_ratio
         
@@ -716,10 +721,10 @@ class Window(QMainWindow, Ui_MainWindow):
         results['basis'] = self.basis
 
 
-        if self.lineEdit_a0.text().strip() != '':
-            A0 = float(self.lineEdit_a0.text().strip())
-            A0_unit = self.comboBox_a0Units.currentText()
-            results['A0'] = convert_to_SI(A0, A0_unit)
+        if self.lineEdit_a1.text().strip() != '':
+            A1 = float(self.lineEdit_a1.text().strip())
+            A1_unit = self.comboBox_a1Units.currentText()
+            results['A1'] = convert_to_SI(A1, A1_unit)
 
         if not self.checkBox_includeBackground.checkState():
             if 'background' in results:
