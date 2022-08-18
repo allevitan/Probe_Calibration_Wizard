@@ -28,10 +28,7 @@ from cdtools.tools import propagators, analysis
 from probe_calibration_wizard.probe_calibration_wizard_ui import Ui_MainWindow
 from probe_calibration_wizard.update_probe_energy import change_energy
 
-# TODO: crashes when A1 is not defined and anything is updated
-# TODO: can't accept probes that don't have a third dimension
-# TODO: crashes when number of modes is inceased and is asked to display one of the new modes, presumably it's not recalculating the probe or something.
-# TODO: propagator doesn't seem to update properly when a second probe is added with a different shape from the first
+# TODO: doesn't check that the background and mask match the dimensions of the probe
 
 """
 This section deals with unit conversions
@@ -83,7 +80,8 @@ def autoset_from_SI(SI_value, textbox, combobox, format_string='%0.2f',
     return converted
 
 def get_SI_from_lineEdit(textbox, combobox):
-    value = float(textbox.text())
+    value = textbox.text()
+    value = 0 if value.strip() == '' else float(value)
     unit = combobox.currentText()
     return convert_to_SI(value, unit)
 
@@ -149,7 +147,11 @@ class Window(QMainWindow, Ui_MainWindow):
         label = self.label_nmodeReadout
         currentMode = self.spinBox_viewMode
 
-        slider.valueChanged.connect(spinbox.setValue)
+        def nmodes_slider_finished_callback(val):
+            spinbox.setValue(val)
+            self.recalculate()
+        
+        slider.sliderMoved.connect(nmodes_slider_finished_callback)
 
         def nmodes_spinbox_finished_callback():
             val = spinbox.value()
@@ -159,9 +161,12 @@ class Window(QMainWindow, Ui_MainWindow):
             
             if currentMode.value() > val:
                 currentMode.setValue(val)
-            
+ 
+            self.recalculate()
+                
         spinbox.valueChanged.connect(nmodes_spinbox_finished_callback)
-
+        
+        
     def setupProbeAdjustment(self):
         self.setupSliderGroup(self.lineEdit_dz,
                               self.lineEdit_dzMin,
@@ -505,17 +510,8 @@ class Window(QMainWindow, Ui_MainWindow):
             self.checkBox_includeBackground.setChecked(False)
         
         # This is initializing self.probe, which stores the processed probe
-        self.probe = loaded_data['probe']
-        
-        # Now we update the controls to be initialized with resonable values
-        self.horizontalSlider_nmodes.setRange(1, n_modes)
-        self.spinBox_nmodes.setRange(1, n_modes)
-        self.spinBox_nmodes.setValue(n_modes)
+        self.probe = self.base_data['probe']
 
-        if hasattr(self, 'orthogonalized_probes'):
-            delattr(self, 'orthogonalized_probes')
-        self.checkBox_ortho.setCheckState(False)
-        
         # The energy slider
         self.energy = hc / self.base_data['wavelength']
         energy = autoset_from_SI(self.energy, self.lineEdit_e, self.comboBox_eUnits,
@@ -526,7 +522,6 @@ class Window(QMainWindow, Ui_MainWindow):
         self.lineEdit_eMax.setText(str(maxval))
         self.horizontalSlider_e.setRange(minval, maxval)
         self.horizontalSlider_e.setValue(int(np.round(energy)))
-
 
         # TODO: This will fail if the units box is changed
         self.pushButton_eReset.resetTo = self.lineEdit_e.text()
@@ -558,7 +553,25 @@ class Window(QMainWindow, Ui_MainWindow):
             autoset_from_SI(A1_SI, self.lineEdit_a1,
                             self.comboBox_a1Units, format_string='%0.3f',
                             target=40)
+        else:
+            self.lineEdit_a1.setText('')
+        # NOTE: the spinbox has to be updated last, because it will trigger
+        # an automatic recalculation of the probe, and that will fail if the
+        # energy is not set (energy defaults to 0). This annoying requirement
+        # could be avoided if I can figure out how to make the recalculation
+        # only trigger when the user makes a change, but I can't, so we're
+        # stuck with this confusing thing for now.
+        # Same goes for the orthogonalized mode checkbox
+        
+        # Now we update the controls to be initialized with resonable values
+        if hasattr(self, 'orthogonalized_probes'):
+            delattr(self, 'orthogonalized_probes')
+        self.checkBox_ortho.setCheckState(False)
 
+        self.horizontalSlider_nmodes.setRange(1, n_modes)
+        self.spinBox_nmodes.setRange(1, n_modes)
+        self.spinBox_nmodes.setValue(n_modes)
+            
         # Now we plot the loaded probe
         self.fig.clear()
         self.axes = self.fig.add_subplot(111)
@@ -566,6 +579,7 @@ class Window(QMainWindow, Ui_MainWindow):
         self.axes.set_xlabel('x (um)')
         self.axes.set_ylabel('y (um)')
 
+        
         basis_norm = np.linalg.norm(self.base_data['basis'], axis=0)
         basis_norm /= 1e-6 # Hard-coded um for now
         extent = [0, self.base_data['probe'].shape[-1]*basis_norm[1], 0,
@@ -626,7 +640,8 @@ class Window(QMainWindow, Ui_MainWindow):
 
         self.basis = self.base_data['basis'] / energy_ratio
         
-        if not hasattr(self, 'universal_prop'):
+        if not hasattr(self, 'universal_prop') or \
+           self.universal_prop.shape[-2:] != self.probe.shape[-2:]:
             # Whenever something happens that has to change this, for example
             # when the energy changes, then the pattern is to delete the
             # universal propagator and it will be recalculated here.
@@ -684,7 +699,7 @@ class Window(QMainWindow, Ui_MainWindow):
             self.axes.set_ylabel('y (' + unit + ')')
             
         title = ' of Mode ' + str(probe_mode) + title
-        
+
         if self.radioButton_amplitude.isChecked():
             title = 'Amplitude' + title
             to_show = np.abs(to_show)
