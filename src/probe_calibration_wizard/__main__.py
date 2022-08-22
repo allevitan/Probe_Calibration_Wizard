@@ -71,7 +71,7 @@ def convert_to_SI(value, unit):
 def convert_from_SI(SI_value, unit):
     return SI_value / SI_CONVERSIONS[unit.strip()]
 
-def convert_to_best_unit(SI_value, unit_options, target=500):
+def convert_to_best_unit(SI_value, unit_options, target=50):
     converted = [convert_from_SI(SI_value, unit) for unit in unit_options]
     logs = np.log10(np.array(converted))
     target_log = np.log10(target)
@@ -199,7 +199,8 @@ class Window(QMainWindow, Ui_MainWindow):
         self.checkBox_ortho.stateChanged.connect(updateOrtho)
         self.checkBox_updateDzWithE.stateChanged.connect(self.fullRefresh)
 
-    def setupSliderGroup(self, textbox, minbox, slider, maxbox, unit, reset):
+    def setupSliderGroup(self, textbox, minbox, slider, maxbox, unit, reset,
+                         factor=1000):
         textbox.setValidator(QDoubleValidator())
         minbox.setValidator(QIntValidator())
         maxbox.setValidator(QIntValidator())
@@ -207,16 +208,17 @@ class Window(QMainWindow, Ui_MainWindow):
         # This causes problems because the value is changed when the text
         # box is updated too.
         #slider.valueChanged.connect(update_textbox)
-        slider.sliderMoved.connect(lambda val : textbox.setText(str(val)))
+        slider.sliderMoved.connect(lambda val : textbox.setText(str(val/1000)))
+        
         
         def update_slider_range():
             value = slider.value()
-            minval = int(minbox.text())
-            maxval = int(maxbox.text())
+            minval = int(float(minbox.text()) * factor)
+            maxval = int(float(maxbox.text()) * factor)
             if maxval < minval:
                 minval, maxval = maxval, minval
-                minbox.setText(str(minval))
-                maxbox.setText(str(maxval))
+                minbox.setText(str(minval/factor))
+                maxbox.setText(str(maxval/factor))
                 
                    
             slider.setRange(minval, maxval)
@@ -226,18 +228,17 @@ class Window(QMainWindow, Ui_MainWindow):
                 slider.setValue(maxval)
                 
             if slider.value() != value:
-                textbox.setText(str(slider.value()))
+                textbox.setText(str(slider.value()/factor))
 
         def textbox_finished_callback():
             value = float(textbox.text())
             if value < float(minbox.text()):
                 minbox.setText(str(int(np.floor(value))))
             if value > float(maxbox.text()):
-                slider.setValue(int(textbox.text()))
                 maxbox.setText(str(int(np.ceil(value))))
                 
             update_slider_range()
-            slider.setValue(int(np.round(value)))
+            slider.setValue(int(np.round(value*factor)))
             
         textbox.editingFinished.connect(textbox_finished_callback)
         minbox.editingFinished.connect(update_slider_range)
@@ -571,8 +572,9 @@ class Window(QMainWindow, Ui_MainWindow):
         maxval = int(np.ceil(energy*1.1))
         self.lineEdit_eMin.setText(str(minval))
         self.lineEdit_eMax.setText(str(maxval))
-        self.horizontalSlider_e.setRange(minval, maxval)
-        self.horizontalSlider_e.setValue(int(np.round(energy)))
+        # TODO: This is hard-coded, but it should automatically update
+        self.horizontalSlider_e.setRange(minval*1000, maxval*1000)
+        self.horizontalSlider_e.setValue(int(np.round(energy*1000)))
 
         # TODO: This will fail if the units box is changed
         self.pushButton_eReset.resetTo = self.lineEdit_e.text()
@@ -584,13 +586,15 @@ class Window(QMainWindow, Ui_MainWindow):
         units = [self.comboBox_dzUnits.itemText(idx) for idx in
                  range(self.comboBox_dzUnits.count())]
         
-        DOF, unit, idx = convert_to_best_unit(DOF, units)
-        prop_limit = int(np.ceil(200 * DOF))
+        prop_limit = 200 * DOF
+        prop_limit, unit, idx = convert_to_best_unit(prop_limit, units)
+        prop_limit = int(np.ceil(prop_limit))
 
         self.lineEdit_dz.setText('0')
         self.lineEdit_dzMin.setText(str(-prop_limit))
         self.lineEdit_dzMax.setText(str(prop_limit))
-        self.horizontalSlider_dz.setRange(-prop_limit, prop_limit)
+        # TODO: Again, this is hard-coded
+        self.horizontalSlider_dz.setRange(-prop_limit*1000, prop_limit*1000)
         self.horizontalSlider_dz.setValue(0)
         self.comboBox_dzUnits.setCurrentIndex(idx)
 
