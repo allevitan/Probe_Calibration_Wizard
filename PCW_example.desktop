@@ -12,4 +12,5 @@ Exec=bash -c "source $HOME/anaconda3/bin/activate && conda activate cdtools && p
 #Make sure to copy one of the icons to an accessible folder, such as
 # $HOME/.icons, if you want the icon to work
 Icon=pcw
+StartupWMClass=pcw
 MimeType=

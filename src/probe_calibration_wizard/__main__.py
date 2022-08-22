@@ -22,6 +22,7 @@ import datetime
 import numpy as np
 import torch as t
 from scipy.io import loadmat, savemat
+import h5py
 
 from cdtools.tools import propagators, analysis
 
@@ -29,6 +30,15 @@ from probe_calibration_wizard.probe_calibration_wizard_ui import Ui_MainWindow
 from probe_calibration_wizard.update_probe_energy import change_energy
 
 # TODO: doesn't check that the background and mask match the dimensions of the probe
+# TODO: Implement Lars' method for energy changing, which will allow for energy shifts of non-square probes
+# TODO: Get non square probes working
+# TODO: Add rotate and flip features
+# TODO: Add pad and crop features
+# TODO: Add tilt features
+# TODO: Allow for save from .cxi files a la ptychocam
+# TODO: Check if the final_resolution value is actuall the correct thing for pitch
+# TODO: change sliders to have 3 decimal places
+
 
 """
 This section deals with unit conversions
@@ -315,7 +325,7 @@ class Window(QMainWindow, Ui_MainWindow):
         def saveAs():
             saveloc = QFileDialog.getSaveFileName(
                 caption='Save Location',
-                filter='Probe Calibration (*.mat)')
+                filter='Probe Calibration (*.mat);;Ptychocam-ish CXI (*.cxi)')
             if saveloc[1] != '':
                 self.saveFile(saveloc[0])
                 
@@ -439,13 +449,54 @@ class Window(QMainWindow, Ui_MainWindow):
         # This is done so that we can load from result files that might have
         # lots of extra info we don't need, and we don't need to keep all
         # that extra data in memory
+        if to_load.split('.')[-1].lower().strip() == 'cxi':
+            print('File to load is a .cxi file, presumably the output of a ptychocam reconstruction')
+            loaded_data = {}
+            with h5py.File(to_load, "r") as f:
+                try:
+                    if "entry_1/image_latest/process_1/final_illumination" in f:
+                        loaded_data['probe'] = \
+                            np.array(f["entry_1/image_latest/process_1/final_illumination"])
+                    else:
+                        self.statusBar().showMessage('.cxi file has no reconstructed probe in "entry_1/image_latest/process_1/final_illumination')
+                        return
+                    # maybe also check image_x and image_y?
+                    if "final_res" in f:
+                        pitch = np.array(f["final_res"])
 
-        try:
-            loaded_data = loadmat(to_load)
-        except ValueError as e:
-            self.statusBar().showMessage(
-                'File does not appear to be a .mat file, unable to load.')
-            return
+                        loaded_data['basis'] = np.array([[0,-pitch],
+                                                         [-pitch,0],
+                                                         [0,0]])
+                    else:
+                        self.statusBar().showMessage('.cxi file has no infomation on the probe basis, checked "final_res".')
+                        return
+
+                    if "entry_1/instrument_1/source_1/energy" in f:
+                        loaded_data['wavelength'] = hc / \
+                            np.array(f["entry_1/instrument_1/source_1/energy"])
+                    else:
+                        self.statusBar().showMessage('.cxi file has no infomation on the probe energy, checked "entry_1/instrument_1/source_1/energy".')
+                        return
+                    
+                    if "entry_1/instrument_1/detector_1/detector_mask" in f:
+                        loaded_data['mask'] = \
+                            np.array(f["entry_1/instrument_1/detector_1/detector_mask"])
+
+                    if "entry_1/image_1/process_1/final_background" in f:
+                        loaded_data['background'] = \
+                            np.fft.ifftshift(np.array(f["entry_1/image_1/process_1/final_background"]))
+                    
+                except Exception as e:
+                    raise e
+            # now I populate 'loaded_data
+
+        else:
+            try:
+                loaded_data = loadmat(to_load)
+            except ValueError as e:
+                self.statusBar().showMessage(
+                    'File does not appear to be a .mat file, unable to load.')
+                return
             
         if not 'probe' in loaded_data:
             self.statusBar().showMessage(
@@ -673,7 +724,7 @@ class Window(QMainWindow, Ui_MainWindow):
         
         if self.radioButton_fourier.isChecked():
             title = ' in Fourier Space'
-            to_show = np.fft.fftshift(np.fft.fft2(to_show, norm='ortho'))
+            to_show = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(to_show), norm='ortho'))
 
             extent = [-1/(2*basis_norm[0]),1/(2*basis_norm[0]),
                       -1/(2*basis_norm[1]),1/(2*basis_norm[1])]
@@ -764,13 +815,18 @@ class Window(QMainWindow, Ui_MainWindow):
                                      + ') at ' + currentTime)
         
     def saveFile(self, filename):
-        # Not sure if this is the most sane approach
-        if filename[-4:].lower() != '.mat':
-            filename += '.mat'
-
         save_data = self.collect_results()
-        savemat(filename, save_data)
+        # Not sure if this is the most sane approach
+        if filename[-4:].lower() == '.cxi':
+            self.statusBar().showMessage('Save to ptychocam-ish .cxi not yet implemented')
+            return
 
+        # The default if no extension is given is a .mat file
+        elif filename[-4:].lower() != '.mat':
+            filename += '.mat'
+        savemat(filename, save_data)
+        self.statusBar().showMessage('Saved calibration to '+filename)
+        
 
 def main(argv=sys.argv):
 
