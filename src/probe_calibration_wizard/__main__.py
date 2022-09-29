@@ -29,7 +29,7 @@ from cdtools.tools import propagators, analysis
 from probe_calibration_wizard.probe_calibration_wizard_ui import Ui_MainWindow
 from probe_calibration_wizard.update_probe_energy import change_energy
 
-# TODO: doesn't check that the background and mask match the dimensions of the probe
+# TODO: Add a check that the background and mask match the dimensions of the output probe when saving
 # TODO: Implement Lars' method for energy changing, which will allow for energy shifts of non-square probes
 # TODO: Get non square probes working
 # TODO: Add rotate and flip features
@@ -37,7 +37,6 @@ from probe_calibration_wizard.update_probe_energy import change_energy
 # TODO: Add tilt features
 # TODO: Allow for save from .cxi files a la ptychocam
 # TODO: Check if the final_resolution value is actuall the correct thing for pitch
-# TODO: change sliders to have 3 decimal places
 
 
 """
