@@ -1,0 +1,17 @@
+[Desktop Entry]
+
+Type=Application
+Name=Probe Calibration Wizard
+Terminal=false
+# This exec command may be different depending on the location of your
+# anaconda installation and the name of the virtual environment within
+# which you installed pcw on your own system, so update accordingly
+# Note: if you would like a default port to be set for ZMQ, you can include it
+# as the -p arguent to pcw.
+#Exec=bash -c "ssh -Y ptycho1@ptycho1.dhcp.lbl.gov -t 'conda activate cdtools_cuda && pcw %F'"	
+Exec=bash -c "source /global/software/miniconda3/bin/activate && conda activate cdtools_cuda && pcw %F"
+#Make sure to copy one of the icons to an accessible folder, such as
+# $HOME/.icons, if you want the icon to work
+Icon=pcw
+StartupWMClass=pcw
+MimeType=

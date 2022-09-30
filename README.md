@@ -26,7 +26,7 @@ $ pcw
 This function also takes the port to publish it's ZeroMQ stream on as an optional command line argument, e.g.
 
 ```console
-$ pcw tcp://*:5557
+$ pcw tcp://*:37011
 ```
 
 ## Data Format
