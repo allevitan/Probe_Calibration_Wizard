@@ -521,6 +521,11 @@ class Window(QMainWindow, Ui_MainWindow):
 
         # All the checks need to go before any loading happens, otherwise
         # it could end up in a bad state during a failed load
+
+        if 'oversampling' in loaded_data:
+            self.spinBox_oversampling.setValue(loaded_data['oversampling'].ravel()[0])
+        else:
+            self.spinBox_oversampling.setValue(1)
         
         self.base_data = {}
         self.base_data['probe'] = loaded_data['probe']
@@ -528,7 +533,7 @@ class Window(QMainWindow, Ui_MainWindow):
         # This always unravels all the modes so the probe is n_modesxNxM
         if len(self.base_data['probe'].shape) == 2:
             self.base_data['probe'] = np.expand_dims(self.base_data['probe'], 0)
-
+            
         n_modes = np.prod(self.base_data['probe'].shape[:-2])
         self.base_data['probe'] = self.base_data['probe'].reshape(
             (n_modes,) + self.base_data['probe'].shape[-2:])
@@ -789,6 +794,7 @@ class Window(QMainWindow, Ui_MainWindow):
         results['probe'] = self.probe
         results['basis'] = self.basis
 
+        results['oversampling'] = self.spinBox_oversampling.value()
 
         if self.lineEdit_a1.text().strip() != '':
             A1 = float(self.lineEdit_a1.text().strip())
