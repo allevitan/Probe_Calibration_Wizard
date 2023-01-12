@@ -858,7 +858,6 @@ def main(argv=sys.argv):
     # not sure if this works with zipped packages
     if config_file_path.exists():
         config.update(json.loads(config_file_path.read_text()))
-    print(config)
     
     parser = argparse.ArgumentParser(description='Probe Calibration Wizard Seven Thousand Twelve')
     parser.add_argument('filename', nargs='?', type=str, help='A file to load in while opening the app', default='')
