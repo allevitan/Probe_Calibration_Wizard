@@ -29,6 +29,11 @@ from cdtools.tools import propagators, analysis
 from probe_calibration_wizard.probe_calibration_wizard_ui import Ui_MainWindow
 from probe_calibration_wizard.update_probe_energy import change_energy
 
+# This is apparently the best-practice way to load config files from within
+# the package
+import importlib.resources
+import json
+
 # TODO: Add a check that the background and mask match the dimensions of the output probe when saving
 # TODO: Implement Lars' method for energy changing, which will allow for energy shifts of non-square probes
 # TODO: Get non square probes working
@@ -373,12 +378,13 @@ class Window(QMainWindow, Ui_MainWindow):
         loaded_data = loadmat(to_load[0])
         
         if 'background' in loaded_data:
-            if loaded_data['background'].shape != self.probe.shape[-2:]:
-                self.statusBar().showMessage(
-                    'Background shape ('
-                    + str(loaded_data['background'].shape)
-                    +') did not match probe.')
-                return
+            # TODO: make this work with oversampling
+            #if loaded_data['background'].shape != self.probe.shape[-2:]:
+            #    self.statusBar().showMessage(
+            #        'Background shape ('
+            #        + str(loaded_data['background'].shape)
+            #        +') did not match probe.')
+            #    return
             
             self.base_data['background'] = loaded_data['background']
             self.pushButton_viewBackground.setDisabled(False)
@@ -399,12 +405,13 @@ class Window(QMainWindow, Ui_MainWindow):
         loaded_data = loadmat(to_load[0])
         
         if 'mask' in loaded_data:
-            if loaded_data['mask'].shape != self.probe.shape[-2:]:
-                self.statusBar().showMessage(
-                    'Background shape ('
-                    + str(loaded_data['mask'].shape)
-                    + ') did not match probe.')
-                return
+            # TODO: introduce an option to load or not
+            #if loaded_data['mask'].shape != self.probe.shape[-2:]:
+            #    self.statusBar().showMessage(
+            #        'Mask shape ('
+            #        + str(loaded_data['mask'].shape)
+            #        + ') did not match probe.')
+            #    return
 
             self.base_data['mask'] = loaded_data['mask']
             self.pushButton_viewMask.setDisabled(False)
@@ -839,10 +846,27 @@ class Window(QMainWindow, Ui_MainWindow):
 
 def main(argv=sys.argv):
 
+    package_root = importlib.resources.files('probe_calibration_wizard')
+    # This loads the default configuration first. This file is managed by
+    # git and should not be edited by a user
+    config = json.loads(package_root.joinpath('defaults.json').read_text())\
+
+    # And now, if the user has installed an optional config file, we allow it
+    # to override what is in defaults.json
+
+    config_file_path = package_root.joinpath('config.json')
+    # not sure if this works with zipped packages
+    if config_file_path.exists():
+        config.update(json.loads(config_file_path.read_text()))
+    print(config)
+    
     parser = argparse.ArgumentParser(description='Probe Calibration Wizard Seven Thousand Twelve')
     parser.add_argument('filename', nargs='?', type=str, help='A file to load in while opening the app', default='')
-    parser.add_argument('--port', '-p', type=str, help='ZeroMQ port to broadcast on', default='tcp://*:5557')
+    parser.add_argument('--port', '-p', type=str, help='ZeroMQ port to broadcast on', default='')
     args = parser.parse_args()
+
+    if args.port == '':
+        args.port = config['broadcast_port']
     
     app = QApplication(sys.argv)
     app.setApplicationName('PCW7012')

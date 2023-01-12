@@ -1,5 +1,6 @@
 *~
 \#*#
+src/probe_calibration_wizard/config.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

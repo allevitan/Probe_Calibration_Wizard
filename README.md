@@ -29,6 +29,12 @@ This function also takes the port to publish it's ZeroMQ stream on as an optiona
 $ pcw tcp://*:37011
 ```
 
+## Configuration
+
+The port on which pcw will broadcast, if not given an argument, can be set in an optional configuration file. An example configuration file is found in "example_config.json". To override the default configuration, place a derived file called "config.json" in the main code folder, "src/probe_calibration_wizard".
+
+If the package is installed normally, you will need to set the configuration file before installing, and reinstall the package whenever you update the configuration. If the package is installed in developer mode, changes to the configuration file will be automatically propagated.
+
 ## Data Format
 
 This tools reads and writes to .mat files, which are expected to contain at minimum the following entries:
